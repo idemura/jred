@@ -8,10 +8,9 @@ public class App {
             return;
         }
         var positional = cmdLineArgs.getPositional();
-        if (positional.isEmpty() ||
-            positional.get(0).equalsIgnoreCase("client")) {
+        if (positional.isEmpty() || positional.get(0).equals("client")) {
             System.out.println("jred client");
-        } else if (positional.get(0).equalsIgnoreCase("server")) {
+        } else if (positional.get(0).equals("server")) {
             System.out.println("jred server");
         } else {
             System.out.println("jred: invalid mode " + positional.get(0));
