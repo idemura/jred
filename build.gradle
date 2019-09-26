@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '5.1.0'
+    id 'io.freefair.lombok' version '4.1.0'
+}
+
+group = 'id.jred'
+version = '10'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    implementation 'com.beust:jcommander:1.78'
+    implementation 'com.google.guava:guava:28.0-jre'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.4.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.4.2'
+}
+
+apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'java'
+
+shadowJar {
+    // TODO: Configure
+}
+
+application {
+    mainClassName = 'id.jred.App'
+}
+
+test {
+    useJUnitPlatform()
+}
