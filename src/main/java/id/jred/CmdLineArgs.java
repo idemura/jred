@@ -17,7 +17,7 @@ public class CmdLineArgs {
     @Parameter(
         names={"-h", "--host"},
         description="Host to listen to/connect")
-    private String host = "127.0.0.1";
+    private String host = "0.0.0.0";
 
     @Parameter(
         names={"-p", "--port"},
@@ -34,6 +34,9 @@ public class CmdLineArgs {
             .args(args)
             .build();
     }
+
+    public int getPort() { return port; }
+    public String getHost() { return host; }
 
     @NonNull
     public List<String> getPositional() {
