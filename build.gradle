@@ -20,6 +20,7 @@ repositories {
 dependencies {
     implementation 'com.beust:jcommander:1.78'
     implementation 'com.fasterxml.jackson.core:jackson-core:2.10.0.pr3'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.10.0.pr3'
     implementation 'com.sparkjava:spark-core:2.8.0'
     implementation 'org.slf4j:slf4j-api:1.7.25'
     runtimeOnly 'org.slf4j:slf4j-simple:1.7.25'

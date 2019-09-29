@@ -2,7 +2,6 @@ package id.jred;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
-import com.beust.jcommander.ParameterException;
 import lombok.NonNull;
 
 import java.util.ArrayList;
@@ -17,12 +16,12 @@ public class CmdLineArgs {
     @Parameter(
         names={"-h", "--host"},
         description="Host to listen to/connect")
-    private String host = "0.0.0.0";
+    private String host;
 
     @Parameter(
         names={"-p", "--port"},
         description="Port to listen to/connect")
-    private int port = 8080;
+    private int port;
 
     @Parameter(description="command [positional arguments]")
     private List<String> positional = new ArrayList<>();
@@ -35,8 +34,13 @@ public class CmdLineArgs {
             .build();
     }
 
-    public int getPort() { return port; }
-    public String getHost() { return host; }
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
 
     @NonNull
     public List<String> getPositional() {

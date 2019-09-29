@@ -1,8 +1,11 @@
 package id.jred;
 
-import spark.Spark;
+import java.io.File;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class App {
+public final class App {
     public static void main(String[] args) {
         var cmdLineArgs = new CmdLineArgs(args);
         if (cmdLineArgs.isHelp()) {
@@ -11,17 +14,30 @@ public class App {
         }
         var positional = cmdLineArgs.getPositional();
         if (positional.isEmpty() || positional.get(0).equals("client")) {
+            var config = ClientConfig.create(cmdLineArgs);
+            System.out.println(config.getHost());
+            System.out.println(config.getPort());
+
             System.out.println("jred client");
         } else if (positional.get(0).equals("server")) {
-            Spark.ipAddress(cmdLineArgs.getHost());
-            Spark.port(cmdLineArgs.getPort());
-
-            var server = new RequestHandlers();
-            Spark.get("/", server::hello);
-            Spark.get("/hello", server::hello);
+            var config = ServerConfig.create(cmdLineArgs);
+            var repoNameMap = createRepoNameMap(config.getRepo());
+            RequestHandlers.start(config, repoNameMap);
         } else {
             System.err.println("Invalid mode: " + positional.get(0));
             System.exit(1);
         }
+    }
+
+    private static Map<String, File> createRepoNameMap(List<String> repos) {
+        var repoMap = new HashMap<String, File>();
+        for (var repoPath : repos) {
+            var f = new File(repoPath);
+            if (repoMap.containsKey(f.getName())) {
+                throw new RuntimeException("Repository duplicate: " + f.getName());
+            }
+            repoMap.put(f.getName(), f);
+        }
+        return repoMap;
     }
 }
