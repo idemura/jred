@@ -7,13 +7,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class ServerConfig extends Config {
+public final class ServerConfig extends Config {
     private List<String> repo = new ArrayList<>();
 
     ServerConfig() {}
 
     public static ServerConfig create(CmdLineArgs cmdLineArgs) {
-        var cfg = create(".jred/server.config", ServerConfig.class);
+        var cfg = create("server.config", ServerConfig.class);
         cfg.useCommandLineArgs(cmdLineArgs);
         return cfg;
     }
@@ -26,7 +26,7 @@ public class ServerConfig extends Config {
     public HashMap<String, Path> createRepoNameMap() {
         var repoMap = new HashMap<String, Path>();
         for (var repoPath : repo) {
-            var p = Path.of(repoPath);
+            var p = Path.of(repoPath).toAbsolutePath();
             var key = p.getFileName().toString();
             if (repoMap.containsKey(key)) {
                 throw new RuntimeException("Repository duplicate: " + key);

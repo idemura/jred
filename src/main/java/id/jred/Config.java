@@ -7,7 +7,7 @@ import lombok.NonNull;
 import java.io.FileNotFoundException;
 
 public abstract class Config {
-    protected static final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     private String host = "0.0.0.0";
     private int port = 8092;

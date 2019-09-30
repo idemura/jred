@@ -7,7 +7,7 @@ import lombok.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CmdLineArgs {
+public final class CmdLineArgs {
     private final JCommander jcmd;
 
     @Parameter(names={"--help"}, help=true)

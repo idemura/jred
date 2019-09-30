@@ -1,5 +1,7 @@
 package id.jred;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import spark.Request;
 import spark.Response;
 import spark.Spark;
@@ -8,19 +10,23 @@ import java.nio.file.Path;
 import java.util.Map;
 
 public final class RequestHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(RequestHandler.class);
+
     private final Map<String, Path> repoNameMap;
 
     public static void start(ServerConfig config) {
         Spark.ipAddress(config.getHost());
         Spark.port(config.getPort());
 
-        var instance = new RequestHandler(config.createRepoNameMap());
-        Spark.get("/", instance::root);
+        var handler = new RequestHandler(config.createRepoNameMap());
+        Spark.get("/", handler::root);
+        Spark.post("/copy", handler::copy);
+        Spark.post("/diff", handler::diff);
 
         new Thread(() -> {
             while (Util.isPidFileExists()) {
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(200 /* millis */);
                 } catch (InterruptedException ex) {
                     break;
                 }
@@ -34,22 +40,44 @@ public final class RequestHandler {
     }
 
     private Object root(Request req, Response response) {
-        var sb = new StringBuilder();
-        sb.append("<!DOCTYPE html>\n")
-                .append("<html>\n")
-                .append("<head>\n")
-                .append("<title>jred server</title>\n")
-                .append("<body>\n")
-                .append("<pre>\n");
-
-        sb.append("jred is working\n");
+        response.type(Protocol.MIME_TEXT);
+        var sb = new StringBuilder("jred is running\n\n");
         for (var f : repoNameMap.values()) {
             sb.append(f.toString()).append("\n");
         }
-
-        sb.append("</pre>\n")
-                .append("</body>\n")
-                .append("</html>\n");
         return sb.toString();
+    }
+
+    private Object copy(Request req, Response response) {
+        response.type(Protocol.MIME_JSON);
+        try {
+            var copyRequest = Protocol.Copy.fromWire(req.body());
+            return createResponse(response, Protocol.OK);
+        } catch (Exception ex) {
+            LOG.error(ex.toString());
+            return createResponse(response, Protocol.INVALID_REQUEST);
+        }
+    }
+
+    private Object diff(Request req, Response response) {
+        try {
+            var diffRequest = Protocol.Diff.fromWire(req.body());
+            return createResponse(response, Protocol.OK);
+        } catch (Exception ex) {
+            LOG.error(ex.toString());
+            return createResponse(response, Protocol.INVALID_REQUEST);
+        }
+    }
+
+    private static String createResponse(Response response, Protocol.Status status) {
+        response.status(status.getError());
+        response.type(Protocol.MIME_JSON);
+        try {
+            return Protocol.toWire(status);
+        } catch (Exception ex) {
+            LOG.error(ex.toString());
+            response.status(500);
+            return "{ \"error\": 500 }";
+        }
     }
 }
