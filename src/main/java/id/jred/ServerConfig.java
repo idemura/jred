@@ -26,7 +26,7 @@ public final class ServerConfig extends Config {
     public HashMap<String, Path> createRepoNameMap() {
         var repoMap = new HashMap<String, Path>();
         for (var repoPath : repo) {
-            var p = Path.of(repoPath).toAbsolutePath();
+            var p = Path.of(repoPath).toAbsolutePath().normalize();
             var key = p.getFileName().toString();
             if (repoMap.containsKey(key)) {
                 throw new RuntimeException("Repository duplicate: " + key);

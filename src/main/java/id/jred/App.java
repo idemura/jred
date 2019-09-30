@@ -18,31 +18,33 @@ public final class App {
             return;
         }
 
-        Util.createWorkDir();
-        var app = new App(cmdLineArgs);
+        try {
+            Util.createWorkDir();
+            var app = new App(cmdLineArgs);
 
-        var posArgs = cmdLineArgs.getPositional();
-        switch (posArgs.get(0)) {
-        case "client": {
-            if (posArgs.size() < 2) {
-                System.err.println("Client command missing");
-                System.exit(1);
+            var posArgs = cmdLineArgs.getPositional();
+            switch (posArgs.get(0)) {
+            case "client": {
+                if (posArgs.size() < 2) {
+                    throw new FatalError("Client command missing");
+                }
+                app.clientCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
+                break;
             }
-            app.clientCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
-            break;
-        }
-        case "server": {
-            if (posArgs.size() < 2) {
-                System.err.println("Server command missing");
-                System.exit(1);
+            case "server": {
+                if (posArgs.size() < 2) {
+                    throw new FatalError("Server command missing");
+                }
+                app.serverCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
+                break;
             }
-            app.serverCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
-            break;
-        }
-        default: {
-            System.err.println("Invalid mode: " + posArgs.get(0));
+            default: {
+                throw new FatalError("Invalid mode: " + posArgs.get(0));
+            }
+            }
+        } catch (FatalError ex) {
+            System.out.println(ex.getMessage());
             System.exit(1);
-        }
         }
     }
 
@@ -55,9 +57,7 @@ public final class App {
         switch (command) {
         case "start": {
             if (Util.isPidFileExists()) {
-                var pid = Util.readPidFile();
-                System.err.println("Server is running, pid=" + pid);
-                System.exit(1);
+                throw new FatalError("Server is running, pid=" + Util.readPidFile());
             }
             Util.createPidFile();
             try {
@@ -84,8 +84,7 @@ public final class App {
             break;
         }
         default: {
-            System.err.println("Invalid server command");
-            System.exit(1);
+            throw new FatalError("Invalid server command: " + command);
         }
         }
     }
@@ -95,18 +94,16 @@ public final class App {
         switch (command) {
         case "copy": {
             if (args.isEmpty()) {
-                System.err.println("Missing list of files");
-                System.exit(1);
+                throw new FatalError("Empty file list");
             }
             var url = buildUrl(config, "/copy");
             var currentDir = Path.of(".").toAbsolutePath().normalize();
             for (var fileName : args) {
-                var path = Path.of(fileName).toAbsolutePath();
+                var path = Path.of(fileName).toAbsolutePath().normalize();
                 if (!path.startsWith(currentDir)) {
-                    System.err.println(
+                    throw new FatalError(
                             "File must belong to current directory tree: " +
                             path.toString());
-                    System.exit(1);
                 }
                 var copyReq = new Protocol.Copy();
                 copyReq.setFileName(path.toString());
@@ -140,8 +137,7 @@ public final class App {
             throw new RuntimeException("not implemented");
         }
         default: {
-            System.err.println("Invalid client command");
-            System.exit(1);
+            throw new FatalError("Invalid client command: " + command);
         }
         }
     }
