@@ -14,7 +14,6 @@ public final class Protocol {
     public static final String MIME_TEXT = "text/plain; charset=utf-8";
 
     public static final Status OK = new Status();
-    public static final Status INVALID_REQUEST = new Status(400, "Invalid request");
 
     public static String toWire(Object object) throws Exception {
         var stream = new ByteArrayOutputStream();
@@ -119,13 +118,13 @@ public final class Protocol {
 
     public static final class Status {
         private int error = 200;
-        private String message;
+        private String details;
 
         public Status() {}
 
-        public Status(int error, String message) {
+        public Status(int error, Throwable cause) {
             this.error = error;
-            this.message = message;
+            this.details = cause.toString();
         }
 
         public static Status fromWire(String body)
@@ -139,8 +138,8 @@ public final class Protocol {
         }
 
         @JsonProperty
-        public String getMessage() {
-            return message;
+        public String getDetails() {
+            return details;
         }
     }
 }

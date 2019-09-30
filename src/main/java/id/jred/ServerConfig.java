@@ -29,7 +29,7 @@ public final class ServerConfig extends Config {
             var p = Path.of(repoPath).toAbsolutePath().normalize();
             var key = p.getFileName().toString();
             if (repoMap.containsKey(key)) {
-                throw new RuntimeException("Repository duplicate: " + key);
+                throw new ExecutionException("Repository duplicate: " + key);
             }
             repoMap.put(key, p);
         }

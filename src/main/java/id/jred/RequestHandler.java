@@ -52,10 +52,14 @@ public final class RequestHandler {
         response.type(Protocol.MIME_JSON);
         try {
             var copyRequest = Protocol.Copy.fromWire(req.body());
+            var repoPath = repoNameMap.get(copyRequest.getRepo().getName());
+            if (repoPath != null) {
+                //
+            }
             return createResponse(response, Protocol.OK);
         } catch (Exception ex) {
             LOG.error(ex.toString());
-            return createResponse(response, Protocol.INVALID_REQUEST);
+            return createResponse(response, new Protocol.Status(400, ex));
         }
     }
 
@@ -65,7 +69,7 @@ public final class RequestHandler {
             return createResponse(response, Protocol.OK);
         } catch (Exception ex) {
             LOG.error(ex.toString());
-            return createResponse(response, Protocol.INVALID_REQUEST);
+            return createResponse(response, new Protocol.Status(400, ex));
         }
     }
 

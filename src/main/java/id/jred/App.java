@@ -26,23 +26,23 @@ public final class App {
             switch (posArgs.get(0)) {
             case "client": {
                 if (posArgs.size() < 2) {
-                    throw new FatalError("Client command missing");
+                    throw new ExecutionException("Client command missing");
                 }
                 app.clientCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
                 break;
             }
             case "server": {
                 if (posArgs.size() < 2) {
-                    throw new FatalError("Server command missing");
+                    throw new ExecutionException("Server command missing");
                 }
                 app.serverCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
                 break;
             }
             default: {
-                throw new FatalError("Invalid mode: " + posArgs.get(0));
+                throw new ExecutionException("Invalid mode: " + posArgs.get(0));
             }
             }
-        } catch (FatalError ex) {
+        } catch (ExecutionException ex) {
             System.out.println(ex.getMessage());
             System.exit(1);
         }
@@ -57,7 +57,7 @@ public final class App {
         switch (command) {
         case "start": {
             if (Util.isPidFileExists()) {
-                throw new FatalError("Server is running, pid=" + Util.readPidFile());
+                throw new ExecutionException("Server is running, pid=" + Util.readPidFile());
             }
             Util.createPidFile();
             try {
@@ -84,7 +84,7 @@ public final class App {
             break;
         }
         default: {
-            throw new FatalError("Invalid server command: " + command);
+            throw new ExecutionException("Invalid server command: " + command);
         }
         }
     }
@@ -94,14 +94,14 @@ public final class App {
         switch (command) {
         case "copy": {
             if (args.isEmpty()) {
-                throw new FatalError("Empty file list");
+                throw new ExecutionException("Empty file list");
             }
             var url = buildUrl(config, "/copy");
             var currentDir = Path.of(".").toAbsolutePath().normalize();
             for (var fileName : args) {
                 var path = Path.of(fileName).toAbsolutePath().normalize();
                 if (!path.startsWith(currentDir)) {
-                    throw new FatalError(
+                    throw new ExecutionException(
                             "File must belong to current directory tree: " +
                             path.toString());
                 }
@@ -122,11 +122,13 @@ public final class App {
                         var status = Protocol.Status.fromWire(
                                 new String(is.readAllBytes(), StandardCharsets.UTF_8));
                         if (status.getError() != 200) {
-                            System.err.println(
+                            throw new ExecutionException(
                                     "Error copy " + fileName + ":\n" +
-                                    "  " + status.getError() + ": " + status.getMessage());
+                                    "  " + status.getError() + ": " + status.getDetails());
                         }
                     }
+                } catch (ExecutionException ex) {
+                    throw ex;
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
@@ -134,10 +136,10 @@ public final class App {
             break;
         }
         case "diff": {
-            throw new RuntimeException("not implemented");
+            throw new ExecutionException("Not implemented");
         }
         default: {
-            throw new FatalError("Invalid client command: " + command);
+            throw new ExecutionException("Invalid client command: " + command);
         }
         }
     }
