@@ -24,9 +24,6 @@ dependencies {
     implementation 'com.sparkjava:spark-core:2.8.0'
     implementation 'org.slf4j:slf4j-api:1.7.25'
     runtimeOnly 'org.slf4j:slf4j-simple:1.7.25'
-
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.4.2'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.4.2'
 }
 
 shadowJar {
@@ -35,8 +32,4 @@ shadowJar {
 
 application {
     mainClassName = 'id.jred.App'
-}
-
-test {
-    useJUnitPlatform()
 }

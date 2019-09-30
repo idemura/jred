@@ -1,9 +1,6 @@
 package id.jred;
 
-import java.io.File;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public final class App {
     public static void main(String[] args) {
@@ -12,32 +9,37 @@ public final class App {
             cmdLineArgs.printHelp();
             return;
         }
+        Util.createWorkDir();
         var positional = cmdLineArgs.getPositional();
         if (positional.isEmpty() || positional.get(0).equals("client")) {
             var config = ClientConfig.create(cmdLineArgs);
             System.out.println(config.getHost());
             System.out.println(config.getPort());
-
             System.out.println("jred client");
         } else if (positional.get(0).equals("server")) {
             var config = ServerConfig.create(cmdLineArgs);
-            var repoNameMap = createRepoNameMap(config.getRepo());
-            RequestHandlers.start(config, repoNameMap);
+            Util.createPidFile();
+            try {
+                RequestHandler.start(config);
+            } catch (RuntimeException ex) {
+                Util.deletePidFile();
+                throw ex;
+            }
+        } else if (positional.get(0).equals("stop")) {
+            if (Util.isPidFileExists()) {
+                var pid = Util.readPidFile();
+                Util.deletePidFile();
+                ProcessHandle.of(pid).ifPresent(handle -> {
+                    try {
+                        handle.onExit().get(3, TimeUnit.SECONDS);
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                });
+            }
         } else {
             System.err.println("Invalid mode: " + positional.get(0));
             System.exit(1);
         }
-    }
-
-    private static Map<String, File> createRepoNameMap(List<String> repos) {
-        var repoMap = new HashMap<String, File>();
-        for (var repoPath : repos) {
-            var f = new File(repoPath);
-            if (repoMap.containsKey(f.getName())) {
-                throw new RuntimeException("Repository duplicate: " + f.getName());
-            }
-            repoMap.put(f.getName(), f);
-        }
-        return repoMap;
     }
 }

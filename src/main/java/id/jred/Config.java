@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NonNull;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 
 public abstract class Config {
@@ -34,14 +33,10 @@ public abstract class Config {
         return port;
     }
 
-    protected static File getUserHomeFile(String name) {
-        return new File(System.getProperty("user.home"), name);
-    }
-
     @NonNull
     protected static <T extends Config> T create(String configName, Class<T> type) {
         try {
-            return mapper.readValue(getUserHomeFile(configName), type);
+            return mapper.readValue(Util.getWorkDir().resolve(configName).toFile(), type);
         } catch (FileNotFoundException ex) {
             return newInstance(type);
         } catch (Exception ex) {

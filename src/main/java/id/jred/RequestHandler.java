@@ -1,27 +1,35 @@
 package id.jred;
 
-import spark.*;
+import spark.Request;
+import spark.Response;
+import spark.Spark;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Map;
 
-public class RequestHandlers {
-    private static RequestHandlers instance;
-    private final Map<String, File> repoNameMap;
+public final class RequestHandler {
+    private final Map<String, Path> repoNameMap;
 
-    public static void start(ServerConfig config, Map<String, File> repoNameMap) {
-        if (instance != null) {
-            throw new RuntimeException("Handler double init");
-        }
-
+    public static void start(ServerConfig config) {
         Spark.ipAddress(config.getHost());
         Spark.port(config.getPort());
 
-        instance = new RequestHandlers(repoNameMap);
+        var instance = new RequestHandler(config.createRepoNameMap());
         Spark.get("/", instance::root);
+
+        new Thread(() -> {
+            while (Util.isPidFileExists()) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ex) {
+                    break;
+                }
+            }
+            Spark.stop();
+        }).start();
     }
 
-    private RequestHandlers(Map<String, File> repoNameMap) {
+    private RequestHandler(Map<String, Path> repoNameMap) {
         this.repoNameMap = repoNameMap;
     }
 
