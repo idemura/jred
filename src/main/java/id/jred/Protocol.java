@@ -1,25 +1,14 @@
 package id.jred;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.io.ByteArrayOutputStream;
 
 public final class Protocol {
-    private static final ObjectMapper mapper = new ObjectMapper();
-
     private Protocol() {}
 
     public static final String MIME_JSON = "application/json";
     public static final String MIME_TEXT = "text/plain; charset=utf-8";
 
     public static final Status OK = new Status();
-
-    public static String toWire(Object object) throws Exception {
-        var stream = new ByteArrayOutputStream();
-        mapper.writeValue(stream, object);
-        return stream.toString();
-    }
 
     public static final class Repo {
         private String name;
@@ -52,11 +41,6 @@ public final class Protocol {
         private String data;
 
         public Copy() {}
-
-        public static Copy fromWire(String body)
-                throws Exception {
-            return mapper.readValue(body, Copy.class);
-        }
 
         public void setRepo(Repo repo) {
             this.repo = repo;
@@ -92,11 +76,6 @@ public final class Protocol {
 
         public Diff() {}
 
-        public static Diff fromWire(String body)
-                throws Exception {
-            return mapper.readValue(body, Diff.class);
-        }
-
         public void setRepo(Repo repo) {
             this.repo = repo;
         }
@@ -122,14 +101,13 @@ public final class Protocol {
 
         public Status() {}
 
-        public Status(int error, Throwable cause) {
+        public Status(int error, String details) {
             this.error = error;
-            this.details = cause.toString();
+            this.details = details;
         }
 
-        public static Status fromWire(String body)
-                throws Exception {
-            return mapper.readValue(body, Status.class);
+        public Status(int error, Throwable cause) {
+            this(error, cause.toString());
         }
 
         @JsonProperty

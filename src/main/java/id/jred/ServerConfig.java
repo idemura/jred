@@ -2,15 +2,28 @@ package id.jred;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Map;
 
 public final class ServerConfig extends Config {
-    private List<String> repo = new ArrayList<>();
+    public static final class Repo {
+        private String path;
+        private String type;
 
-    ServerConfig() {}
+        @JsonProperty
+        public String getPath() {
+            return path;
+        }
+
+        @JsonProperty
+        public String getType() {
+            return type;
+        }
+    }
+
+    private Map<String, Repo> repo = new HashMap<>();
+
+    public ServerConfig() {}
 
     public static ServerConfig create(CmdLineArgs cmdLineArgs) {
         var cfg = create("server.config", ServerConfig.class);
@@ -19,20 +32,7 @@ public final class ServerConfig extends Config {
     }
 
     @JsonProperty
-    public List<String> getRepo() {
+    public Map<String, Repo> getRepo() {
         return repo;
-    }
-
-    public HashMap<String, Path> createRepoNameMap() {
-        var repoMap = new HashMap<String, Path>();
-        for (var repoPath : repo) {
-            var p = Path.of(repoPath).toAbsolutePath().normalize();
-            var key = p.getFileName().toString();
-            if (repoMap.containsKey(key)) {
-                throw new ExecutionException("Repository duplicate: " + key);
-            }
-            repoMap.put(key, p);
-        }
-        return repoMap;
     }
 }

@@ -1,5 +1,6 @@
 package id.jred;
 
+import java.io.FileInputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
@@ -32,10 +33,10 @@ public final class App {
                 break;
             }
             case "server": {
-                if (posArgs.size() < 2) {
+                if (posArgs.size() != 2) {
                     throw new ExecutionException("Server command missing");
                 }
-                app.serverCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
+                app.serverCommand(posArgs.get(1));
                 break;
             }
             default: {
@@ -52,23 +53,23 @@ public final class App {
         this.cmdLineArgs = cmdLineArgs;
     }
 
-    private void serverCommand(String command, List<String> args) {
-        var config = ServerConfig.create(cmdLineArgs);
+    private void serverCommand(String command) {
         switch (command) {
-        case "start": {
+        case "start":
             if (Util.isPidFileExists()) {
-                throw new ExecutionException("Server is running, pid=" + Util.readPidFile());
+                System.out.println("Server is running, pid=" + Util.readPidFile());
+                break;
             }
             Util.createPidFile();
             try {
-                RequestHandler.start(config);
+                RequestHandler.start(ServerConfig.create(cmdLineArgs));
             } catch (RuntimeException ex) {
                 Util.deletePidFile();
                 throw ex;
             }
             break;
-        }
-        case "stop": {
+
+        case "stop":
             if (Util.isPidFileExists()) {
                 var pid = Util.readPidFile();
                 Util.deletePidFile();
@@ -82,65 +83,45 @@ public final class App {
                 });
             }
             break;
-        }
-        default: {
+
+        default:
             throw new ExecutionException("Invalid server command: " + command);
-        }
         }
     }
 
     private void clientCommand(String command, List<String> args) {
-        var config = ClientConfig.create(cmdLineArgs);
         switch (command) {
-        case "copy": {
+        case "copy":
             if (args.isEmpty()) {
                 throw new ExecutionException("Empty file list");
             }
-            var url = buildUrl(config, "/copy");
+            var url = buildUrl(ClientConfig.create(cmdLineArgs), "/copy");
             var currentDir = Path.of(".").toAbsolutePath().normalize();
             for (var fileName : args) {
                 var path = Path.of(fileName).toAbsolutePath().normalize();
                 if (!path.startsWith(currentDir)) {
                     throw new ExecutionException(
-                            "File must belong to current directory tree: " +
+                            "File must belong to repo directory tree: " +
                             path.toString());
                 }
                 var copyReq = new Protocol.Copy();
-                copyReq.setFileName(path.toString());
+                copyReq.setFileName(currentDir.relativize(path).toString());
                 copyReq.setRepo(initRepo(currentDir));
-                try {
-                    var connection = (HttpURLConnection) url.openConnection();
-                    connection.setRequestMethod("POST");
-                    connection.setRequestProperty("Content-Type", Protocol.MIME_JSON);
-                    connection.setRequestProperty("Accept", Protocol.MIME_JSON);
-                    connection.setDoInput(true);
-                    connection.setDoOutput(true);
-                    try (var os = connection.getOutputStream()) {
-                        os.write(Protocol.toWire(copyReq).getBytes(StandardCharsets.UTF_8));
-                    }
-                    try (var is = connection.getInputStream()) {
-                        var status = Protocol.Status.fromWire(
-                                new String(is.readAllBytes(), StandardCharsets.UTF_8));
-                        if (status.getError() != 200) {
-                            throw new ExecutionException(
-                                    "Error copy " + fileName + ":\n" +
-                                    "  " + status.getError() + ": " + status.getDetails());
-                        }
-                    }
-                } catch (ExecutionException ex) {
-                    throw ex;
+                try (var stream = new FileInputStream(path.toString())) {
+                    copyReq.setData(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
+                var status = post(url, copyReq);
+                if (status.getError() != 200) {
+                    throw new ExecutionException(
+                            "Error copy " + fileName + ": " + status.getDetails());
+                }
             }
             break;
-        }
-        case "diff": {
-            throw new ExecutionException("Not implemented");
-        }
-        default: {
+
+        default:
             throw new ExecutionException("Invalid client command: " + command);
-        }
         }
     }
 
@@ -163,6 +144,30 @@ public final class App {
                     null).toURL();
         } catch (Exception ex) {
             throw new RuntimeException(ex);
+        }
+    }
+
+    private static Protocol.Status post(URL url, Object request) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", Protocol.MIME_JSON);
+            connection.setRequestProperty("Accept", Protocol.MIME_JSON);
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+            try (var os = connection.getOutputStream()) {
+                Json.write(request, os);
+            }
+            try (var is = connection.getInputStream()) {
+                return Json.read(Protocol.Status.class, is);
+            }
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
         }
     }
 }
