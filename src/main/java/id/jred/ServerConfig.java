@@ -10,12 +10,12 @@ public final class ServerConfig extends Config {
         private String path;
         private String type;
 
-        @JsonProperty
+        @JsonProperty("path")
         public String getPath() {
             return path;
         }
 
-        @JsonProperty
+        @JsonProperty("type")
         public String getType() {
             return type;
         }
@@ -31,7 +31,7 @@ public final class ServerConfig extends Config {
         return cfg;
     }
 
-    @JsonProperty
+    @JsonProperty("repo_map")
     public Map<String, Repo> getRepo() {
         return repo;
     }

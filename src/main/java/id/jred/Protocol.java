@@ -20,7 +20,7 @@ public final class Protocol {
             this.name = name;
         }
 
-        @JsonProperty
+        @JsonProperty("name")
         public String getName() {
             return name;
         }
@@ -29,7 +29,7 @@ public final class Protocol {
             this.revision = revision;
         }
 
-        @JsonProperty
+        @JsonProperty("revision")
         public String getRevision() {
             return revision;
         }
@@ -46,7 +46,7 @@ public final class Protocol {
             this.repo = repo;
         }
 
-        @JsonProperty
+        @JsonProperty("repo")
         public Repo getRepo() {
             return repo;
         }
@@ -55,7 +55,7 @@ public final class Protocol {
             this.fileName = fileName;
         }
 
-        @JsonProperty
+        @JsonProperty("file_name")
         public String getFileName() {
             return fileName;
         }
@@ -64,7 +64,7 @@ public final class Protocol {
             this.data = data;
         }
 
-        @JsonProperty
+        @JsonProperty("data")
         public String getData() {
             return data;
         }
@@ -80,7 +80,7 @@ public final class Protocol {
             this.repo = repo;
         }
 
-        @JsonProperty
+        @JsonProperty("repo")
         public Repo getRepo() {
             return repo;
         }
@@ -89,7 +89,7 @@ public final class Protocol {
             this.diff = diff;
         }
 
-        @JsonProperty
+        @JsonProperty("diff")
         public String getDiff() {
             return diff;
         }
@@ -110,12 +110,12 @@ public final class Protocol {
             this(error, cause.toString());
         }
 
-        @JsonProperty
+        @JsonProperty("error")
         public int getError() {
             return error;
         }
 
-        @JsonProperty
+        @JsonProperty("details")
         public String getDetails() {
             return details;
         }

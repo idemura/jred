@@ -13,6 +13,16 @@ public final class App {
     private final CmdLineArgs cmdLineArgs;
 
     public static void main(String[] args) {
+        try {
+            ClassLoader cl = App.class.getClassLoader();
+            var enumerator = cl.getResources("/");
+            while (enumerator.hasMoreElements()) {
+                System.out.println(enumerator.nextElement());
+            }
+        } catch (Exception ex) {
+            return;
+        }
+
         var cmdLineArgs = new CmdLineArgs(args);
         if (cmdLineArgs.isHelp() || cmdLineArgs.getPositional().isEmpty()) {
             cmdLineArgs.printHelp();
@@ -20,30 +30,29 @@ public final class App {
         }
 
         try {
-            Util.createWorkDir();
+            WorkDir.create();
             var app = new App(cmdLineArgs);
 
             var posArgs = cmdLineArgs.getPositional();
             switch (posArgs.get(0)) {
-            case "client": {
+            case "client":
                 if (posArgs.size() < 2) {
-                    throw new ExecutionException("Client command missing");
+                    throw new AppException("Client command missing");
                 }
                 app.clientCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
                 break;
-            }
-            case "server": {
+
+            case "server":
                 if (posArgs.size() != 2) {
-                    throw new ExecutionException("Server command missing");
+                    throw new AppException("Server command missing");
                 }
                 app.serverCommand(posArgs.get(1));
                 break;
+
+            default:
+                throw new AppException("Invalid mode: " + posArgs.get(0));
             }
-            default: {
-                throw new ExecutionException("Invalid mode: " + posArgs.get(0));
-            }
-            }
-        } catch (ExecutionException ex) {
+        } catch (AppException ex) {
             System.out.println(ex.getMessage());
             System.exit(1);
         }
@@ -56,27 +65,27 @@ public final class App {
     private void serverCommand(String command) {
         switch (command) {
         case "start":
-            if (Util.isPidFileExists()) {
-                System.out.println("Server is running, pid=" + Util.readPidFile());
+            if (PidFile.exists(true /* checkAlive */)) {
+                System.out.println("Server is running, pid=" + PidFile.read());
                 break;
             }
-            Util.createPidFile();
+            PidFile.create();
             try {
                 RequestHandler.start(ServerConfig.create(cmdLineArgs));
             } catch (RuntimeException ex) {
-                Util.deletePidFile();
+                PidFile.delete();
                 throw ex;
             }
             break;
 
         case "stop":
-            if (Util.isPidFileExists()) {
-                var pid = Util.readPidFile();
-                Util.deletePidFile();
+            if (PidFile.exists(false /* checkAlive */)) {
+                var pid = PidFile.read();
+                PidFile.delete();
                 ProcessHandle.of(pid).ifPresent(handle -> {
                     try {
                         handle.onExit().get(3, TimeUnit.SECONDS);
-                        System.out.println("Server " + pid + " stopped");
+                        System.out.println("Server process " + pid + " stopped");
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
                     }
@@ -85,7 +94,7 @@ public final class App {
             break;
 
         default:
-            throw new ExecutionException("Invalid server command: " + command);
+            throw new AppException("Invalid server command: " + command);
         }
     }
 
@@ -93,14 +102,14 @@ public final class App {
         switch (command) {
         case "copy":
             if (args.isEmpty()) {
-                throw new ExecutionException("Empty file list");
+                throw new AppException("Empty file list");
             }
             var url = buildUrl(ClientConfig.create(cmdLineArgs), "/copy");
             var currentDir = Path.of(".").toAbsolutePath().normalize();
             for (var fileName : args) {
                 var path = Path.of(fileName).toAbsolutePath().normalize();
                 if (!path.startsWith(currentDir)) {
-                    throw new ExecutionException(
+                    throw new AppException(
                             "File must belong to repo directory tree: " +
                             path.toString());
                 }
@@ -114,14 +123,17 @@ public final class App {
                 }
                 var status = post(url, copyReq);
                 if (status.getError() != 200) {
-                    throw new ExecutionException(
+                    throw new AppException(
                             "Error copy " + fileName + ": " + status.getDetails());
                 }
             }
             break;
 
+        case "diff":
+            break;
+
         default:
-            throw new ExecutionException("Invalid client command: " + command);
+            throw new AppException("Invalid client command: " + command);
         }
     }
 

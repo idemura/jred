@@ -23,12 +23,12 @@ public abstract class Config {
         }
     }
 
-    @JsonProperty
+    @JsonProperty("host")
     String getHost() {
         return host;
     }
 
-    @JsonProperty
+    @JsonProperty("port")
     int getPort() {
         return port;
     }
@@ -36,7 +36,7 @@ public abstract class Config {
     @NonNull
     protected static <T extends Config> T create(String configName, Class<T> type) {
         try {
-            return mapper.readValue(Util.getWorkDir().resolve(configName).toFile(), type);
+            return mapper.readValue(WorkDir.getPath().resolve(configName).toFile(), type);
         } catch (FileNotFoundException ex) {
             return newInstance(type);
         } catch (Exception ex) {
