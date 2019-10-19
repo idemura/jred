@@ -1,10 +1,14 @@
 package id.jred;
 
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -13,16 +17,6 @@ public final class App {
     private final CmdLineArgs cmdLineArgs;
 
     public static void main(String[] args) {
-        try {
-            ClassLoader cl = App.class.getClassLoader();
-            var enumerator = cl.getResources("/");
-            while (enumerator.hasMoreElements()) {
-                System.out.println(enumerator.nextElement());
-            }
-        } catch (Exception ex) {
-            return;
-        }
-
         var cmdLineArgs = new CmdLineArgs(args);
         if (cmdLineArgs.isHelp() || cmdLineArgs.getPositional().isEmpty()) {
             cmdLineArgs.printHelp();
@@ -37,16 +31,23 @@ public final class App {
             switch (posArgs.get(0)) {
             case "client":
                 if (posArgs.size() < 2) {
-                    throw new AppException("Client command missing");
+                    throw new AppException("Client command invalid");
                 }
                 app.clientCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
                 break;
 
             case "server":
                 if (posArgs.size() != 2) {
-                    throw new AppException("Server command missing");
+                    throw new AppException("Server command invalid");
                 }
                 app.serverCommand(posArgs.get(1));
+                break;
+
+            case "update":
+                if (posArgs.size() != 1) {
+                    throw new AppException("Update command invalid");
+                }
+                app.update();
                 break;
 
             default:
@@ -137,6 +138,31 @@ public final class App {
         }
     }
 
+    private void update() {
+        try {
+            var cl = App.class.getClassLoader();
+            String registry;
+            try (var registryStream = cl.getResourceAsStream("source_control/registry")) {
+                if (registryStream != null) {
+                    registry = new String(
+                            registryStream.readAllBytes(),
+                            StandardCharsets.UTF_8);
+                } else {
+                    throw new AppException("registry not found");
+                }
+            }
+            for (var name : registry.split("\n")) {
+                name = name.trim();
+                if (!name.isEmpty()) {
+                    copyOpFiles(cl, name);
+                }
+            }
+            System.out.println("Update done");
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     private static Protocol.Repo initRepo(Path absCurrDir) {
         var repo = new Protocol.Repo();
         repo.setName(absCurrDir.getFileName().toString());
@@ -164,8 +190,8 @@ public final class App {
         try {
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", Protocol.MIME_JSON);
-            connection.setRequestProperty("Accept", Protocol.MIME_JSON);
+            connection.setRequestProperty("Content-Type", MimeType.JSON);
+            connection.setRequestProperty("Accept", MimeType.JSON);
             connection.setDoInput(true);
             connection.setDoOutput(true);
             try (var os = connection.getOutputStream()) {
@@ -179,6 +205,29 @@ public final class App {
         } finally {
             if (connection != null) {
                 connection.disconnect();
+            }
+        }
+    }
+
+    private static void copyOpFiles(ClassLoader cl, String name)
+            throws IOException
+    {
+        var destPath = WorkDir.getPath().resolve(name);
+        try {
+            Files.createDirectory(destPath);
+        } catch (FileAlreadyExistsException ex) {
+            // Ignore
+        }
+        var prefix = "source_control/" + name + "/";
+        for (var a : new String[]{"apply", "diff", "revision"}) {
+            var qualifiedName = prefix + a;
+            try (var is = cl.getResourceAsStream(qualifiedName)) {
+                if (is == null) {
+                    throw new IOException("Resource not found: " + qualifiedName);
+                }
+                try (var os = new FileOutputStream(destPath.resolve(a).toFile())) {
+                    os.write(is.readAllBytes());
+                }
             }
         }
     }

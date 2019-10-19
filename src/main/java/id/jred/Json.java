@@ -2,7 +2,6 @@ package id.jred;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -27,16 +26,19 @@ public final class Json {
         }
     }
 
-    public static OutputStream write(Object object, OutputStream os) {
+    public static void write(Object object, OutputStream os) {
         try {
             mapper.writeValue(os, object);
-            return os;
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
     }
 
-    public static String write(Object object) {
-        return write(object, new ByteArrayOutputStream()).toString();
+    public static void writeFormatted(Object object, OutputStream os) {
+        try {
+            mapper.writerWithDefaultPrettyPrinter().writeValue(os, object);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

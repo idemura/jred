@@ -44,10 +44,10 @@ public final class RequestHandler {
 
     private Object root(Request req, Response response) {
         try {
-            response.type(Protocol.MIME_TEXT);
+            response.type(MimeType.TEXT);
             var os = new ByteArrayOutputStream();
             os.write("jred is running\n\n".getBytes(StandardCharsets.UTF_8));
-            Json.write(config, os);
+            Json.writeFormatted(config, os);
             return os.toString(StandardCharsets.UTF_8);
         } catch (Exception ex) {
             LOG.error(ex.toString());
@@ -106,7 +106,9 @@ public final class RequestHandler {
 
     private static String respondCode(Response response, int code, String details) {
         response.status(code);
-        response.type(Protocol.MIME_JSON);
-        return Json.write(new Protocol.Status(code, details));
+        response.type(MimeType.JSON);
+        var os = new ByteArrayOutputStream();
+        Json.write(new Protocol.Status(code, details), os);
+        return os.toString(StandardCharsets.UTF_8);
     }
 }

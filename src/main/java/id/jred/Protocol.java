@@ -5,11 +5,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public final class Protocol {
     private Protocol() {}
 
-    public static final String MIME_JSON = "application/json";
-    public static final String MIME_TEXT = "text/plain; charset=utf-8";
-
-    public static final Status OK = new Status();
-
     public static final class Repo {
         private String name;
         private String revision;

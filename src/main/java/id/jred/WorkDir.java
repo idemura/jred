@@ -11,7 +11,7 @@ public final class WorkDir {
         try {
             Files.createDirectory(getPath());
         } catch (FileAlreadyExistsException ex) {
-            // Empty
+            // Ignore
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
