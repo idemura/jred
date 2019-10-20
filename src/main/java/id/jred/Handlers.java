@@ -84,10 +84,6 @@ public final class Handlers {
     private Object diff(Request req, Response response) {
         try {
             var diffRequest = Json.read(Protocol.Diff.class, req.bodyAsBytes());
-            if (diffRequest.getDiff().isEmpty()) {
-                // Git doesn't understand empty diff. Respond success.
-                return respondSuccess(response);
-            }
             var repoCfg = config.getRepo().get(diffRequest.getRepo().getName());
             if (repoCfg == null) {
                 return respondError(response, 400,
@@ -100,10 +96,12 @@ public final class Handlers {
                         "Revision mismatch: server " + revision +
                         " client " + diffRequest.getRepo().getRevision());
             }
-            Script.run(
-                    repoCfg.getVCS() + "/apply",
-                    Optional.of(repoPath),
-                    Optional.of(diffRequest.getDiff()));
+            if (!diffRequest.getDiff().isEmpty()) {
+                Script.run(
+                        repoCfg.getVCS() + "/apply",
+                        Optional.of(repoPath),
+                        Optional.of(diffRequest.getDiff()));
+            }
             return respondSuccess(response);
         } catch (Exception ex) {
             LOG.error(ex.toString());
