@@ -11,6 +11,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public final class App {
@@ -54,7 +55,7 @@ public final class App {
                 throw new AppException("Invalid mode: " + posArgs.get(0));
             }
         } catch (AppException ex) {
-            System.out.println(ex.getMessage());
+            System.err.println(ex.getMessage());
             System.exit(1);
         }
     }
@@ -72,7 +73,7 @@ public final class App {
             }
             PidFile.create();
             try {
-                RequestHandler.start(ServerConfig.create(cmdLineArgs));
+                Handlers.start(ServerConfig.create(cmdLineArgs));
             } catch (RuntimeException ex) {
                 PidFile.delete();
                 throw ex;
@@ -100,39 +101,40 @@ public final class App {
     }
 
     private void clientCommand(String command, List<String> args) {
+        var config = ClientConfig.create(cmdLineArgs);
+        var currentDir = WorkDir.getCurrent();
+        var repo = initRepo(currentDir, cmdLineArgs.getVCS());
+
         switch (command) {
-        case "copy":
+        case "copy": {
             if (args.isEmpty()) {
                 throw new AppException("Empty file list");
             }
-            var url = buildUrl(ClientConfig.create(cmdLineArgs), "/copy");
-            var currentDir = Path.of(".").toAbsolutePath().normalize();
             for (var fileName : args) {
                 var path = Path.of(fileName).toAbsolutePath().normalize();
                 if (!path.startsWith(currentDir)) {
                     throw new AppException(
-                            "File must belong to repo directory tree: " +
-                            path.toString());
+                            "File must belong to repo directory tree: " + path.toString());
                 }
                 var copyReq = new Protocol.Copy();
+                copyReq.setRepo(repo);
                 copyReq.setFileName(currentDir.relativize(path).toString());
-                copyReq.setRepo(initRepo(currentDir));
-                try (var stream = new FileInputStream(path.toString())) {
+                try (var stream = new FileInputStream(path.toFile())) {
                     copyReq.setData(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
-                var status = post(url, copyReq);
-                if (status.getError() != 200) {
-                    throw new AppException(
-                            "Error copy " + fileName + ": " + status.getDetails());
-                }
+                post(buildUrl(config, "/copy"), copyReq);
             }
             break;
-
-        case "diff":
+        }
+        case "diff": {
+            var diffReq = new Protocol.Diff();
+            diffReq.setRepo(repo);
+            diffReq.setDiff(Script.run(cmdLineArgs.getVCS() + "/diff", Optional.empty()));
+            post(buildUrl(config, "/diff"), diffReq);
             break;
-
+        }
         default:
             throw new AppException("Invalid client command: " + command);
         }
@@ -157,16 +159,16 @@ public final class App {
                     copyOpFiles(cl, name);
                 }
             }
-            System.out.println("Update done");
+            System.out.println("Scripts updated");
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
     }
 
-    private static Protocol.Repo initRepo(Path absCurrDir) {
+    private static Protocol.Repo initRepo(Path absCurrDir, String vcs) {
         var repo = new Protocol.Repo();
         repo.setName(absCurrDir.getFileName().toString());
-        repo.setRevision("1200");
+        repo.setRevision(Script.run(vcs + "/revision", Optional.empty()).trim());
         return repo;
     }
 
@@ -185,7 +187,7 @@ public final class App {
         }
     }
 
-    private static Protocol.Status post(URL url, Object request) {
+    private static byte[] post(URL url, Object request) {
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) url.openConnection();
@@ -198,10 +200,22 @@ public final class App {
                 Json.write(request, os);
             }
             try (var is = connection.getInputStream()) {
-                return Json.read(Protocol.Status.class, is);
+                return is.readAllBytes();
             }
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
+        } catch (IOException ex) {
+            AppException appEx;
+            try (var es = connection.getErrorStream()) {
+                String msg;
+                if (es != null) {
+                    msg = Json.read(Protocol.Error.class, es).getErrorMsg();
+                } else {
+                    msg = "HTTP error code: " + connection.getResponseCode();
+                }
+                appEx = new AppException(msg);
+            } catch (Exception ex2) {
+                throw new RuntimeException(ex2);
+            }
+            throw appEx;
         } finally {
             if (connection != null) {
                 connection.disconnect();

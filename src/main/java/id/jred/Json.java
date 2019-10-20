@@ -26,6 +26,14 @@ public final class Json {
         }
     }
 
+    public static String writeString(Object object) {
+        try {
+            return mapper.writeValueAsString(object);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     public static void write(Object object, OutputStream os) {
         try {
             mapper.writeValue(os, object);

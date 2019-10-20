@@ -20,4 +20,8 @@ public final class WorkDir {
     public static Path getPath() {
         return Path.of(System.getProperty("user.home"), ".jred");
     }
+
+    public static Path getCurrent() {
+        return Path.of(".").toAbsolutePath().normalize();
+    }
 }

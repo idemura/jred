@@ -90,29 +90,22 @@ public final class Protocol {
         }
     }
 
-    public static final class Status {
-        private int error = 200;
-        private String details;
+    public static final class Error {
+        private String errorMsg;
 
-        public Status() {}
+        public Error() {}
 
-        public Status(int error, String details) {
-            this.error = error;
-            this.details = details;
+        public Error(String errorMsg) {
+            this.errorMsg = errorMsg;
         }
 
-        public Status(int error, Throwable cause) {
-            this(error, cause.toString());
+        public Error(Throwable cause) {
+            this(cause.toString());
         }
 
-        @JsonProperty("error")
-        public int getError() {
-            return error;
-        }
-
-        @JsonProperty("details")
-        public String getDetails() {
-            return details;
+        @JsonProperty("msg")
+        public String getErrorMsg() {
+            return errorMsg;
         }
     }
 }

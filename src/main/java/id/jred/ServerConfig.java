@@ -8,16 +8,16 @@ import java.util.Map;
 public final class ServerConfig extends Config {
     public static final class Repo {
         private String path;
-        private String type;
+        private String vcs;
 
         @JsonProperty("path")
         public String getPath() {
             return path;
         }
 
-        @JsonProperty("type")
-        public String getType() {
-            return type;
+        @JsonProperty("vcs")
+        public String getVCS() {
+            return vcs;
         }
     }
 

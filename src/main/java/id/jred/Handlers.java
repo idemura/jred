@@ -11,9 +11,10 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
-public final class RequestHandler {
-    private static final Logger LOG = LoggerFactory.getLogger(RequestHandler.class);
+public final class Handlers {
+    private static final Logger LOG = LoggerFactory.getLogger(Handlers.class);
 
     private final ServerConfig config;
 
@@ -21,7 +22,7 @@ public final class RequestHandler {
         Spark.ipAddress(config.getHost());
         Spark.port(config.getPort());
 
-        var handler = new RequestHandler(config);
+        var handler = new Handlers(config);
         Spark.get("/", handler::root);
         Spark.post("/copy", handler::copy);
         Spark.post("/diff", handler::diff);
@@ -38,7 +39,7 @@ public final class RequestHandler {
         }).start();
     }
 
-    private RequestHandler(ServerConfig config) {
+    private Handlers(ServerConfig config) {
         this.config = config;
     }
 
@@ -51,7 +52,7 @@ public final class RequestHandler {
             return os.toString(StandardCharsets.UTF_8);
         } catch (Exception ex) {
             LOG.error(ex.toString());
-            return respondCode(response, 400, ex);
+            return respondError(response, 400, ex);
         }
     }
 
@@ -60,13 +61,13 @@ public final class RequestHandler {
             var copyRequest = Json.read(Protocol.Copy.class, req.bodyAsBytes());
             var repoCfg = config.getRepo().get(copyRequest.getRepo().getName());
             if (repoCfg == null) {
-                return respondCode(response, 400,
+                return respondError(response, 400,
                         "Repo not found: " + copyRequest.getRepo().getName());
             }
             var repoPath = Path.of(repoCfg.getPath()).toAbsolutePath().normalize();
             var destPath = repoPath.resolve(copyRequest.getFileName()).normalize();
             if (!destPath.startsWith(repoPath)) {
-                return respondCode(response, 400,
+                return respondError(response, 400,
                         "File must belong to repo directory tree: " + copyRequest.getFileName());
             }
             Files.createDirectories(destPath.getParent());
@@ -76,7 +77,7 @@ public final class RequestHandler {
             return respondSuccess(response);
         } catch (Exception ex) {
             LOG.error(ex.toString());
-            return respondCode(response, 400, ex);
+            return respondError(response, 400, ex);
         }
     }
 
@@ -85,30 +86,38 @@ public final class RequestHandler {
             var diffRequest = Json.read(Protocol.Diff.class, req.bodyAsBytes());
             var repoCfg = config.getRepo().get(diffRequest.getRepo().getName());
             if (repoCfg == null) {
-                return respondCode(response, 400,
+                return respondError(response, 400,
                         "Repo not found: " + diffRequest.getRepo().getName());
             }
             var repoPath = Path.of(repoCfg.getPath()).toAbsolutePath().normalize();
+            var revision = Script.run(repoCfg.getVCS() + "/revision", Optional.of(repoPath)).trim();
+            if (!revision.equals(diffRequest.getRepo().getRevision())) {
+                return respondError(response, 400,
+                        "Revision mismatch: server " + revision +
+                        " client " + diffRequest.getRepo().getRevision());
+            }
+            Script.run(
+                    repoCfg.getVCS() + "/apply",
+                    Optional.of(repoPath),
+                    Optional.of(diffRequest.getDiff()));
             return respondSuccess(response);
         } catch (Exception ex) {
             LOG.error(ex.toString());
-            return respondCode(response, 400, ex);
+            return respondError(response, 400, ex);
         }
     }
 
     private static String respondSuccess(Response response) {
-        return respondCode(response, 200, "");
+        return respondError(response, 200, "");
     }
 
-    private static String respondCode(Response response, int code, Exception ex) {
-        return respondCode(response, code, ex.toString());
+    private static String respondError(Response response, int code, Exception ex) {
+        return respondError(response, code, ex.getMessage());
     }
 
-    private static String respondCode(Response response, int code, String details) {
+    private static String respondError(Response response, int code, String errorMsg) {
         response.status(code);
         response.type(MimeType.JSON);
-        var os = new ByteArrayOutputStream();
-        Json.write(new Protocol.Status(code, details), os);
-        return os.toString(StandardCharsets.UTF_8);
+        return Json.writeString(new Protocol.Error(errorMsg));
     }
 }

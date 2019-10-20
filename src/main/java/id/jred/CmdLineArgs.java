@@ -23,6 +23,11 @@ public final class CmdLineArgs {
         description="Port to listen to/connect")
     private int port;
 
+    @Parameter(
+        names={"--vcs"},
+        description="Version control system")
+    private String vcs = "git";
+
     @Parameter(description="command [positional arguments]")
     private List<String> positional = new ArrayList<>();
 
@@ -40,6 +45,10 @@ public final class CmdLineArgs {
 
     public int getPort() {
         return port;
+    }
+
+    public String getVCS() {
+        return vcs;
     }
 
     @NonNull
