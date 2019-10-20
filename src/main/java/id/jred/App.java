@@ -25,8 +25,10 @@ public final class App {
         }
 
         try {
-            WorkDir.create();
             var app = new App(cmdLineArgs);
+            if (WorkDir.create()) {
+                app.update();
+            }
 
             var posArgs = cmdLineArgs.getPositional();
             switch (posArgs.get(0)) {

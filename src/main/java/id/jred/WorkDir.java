@@ -7,11 +7,12 @@ import java.nio.file.Path;
 public final class WorkDir {
     private WorkDir() {}
 
-    public static void create() {
+    public static boolean create() {
         try {
             Files.createDirectory(getPath());
+            return true;
         } catch (FileAlreadyExistsException ex) {
-            // Ignore
+            return false;
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
