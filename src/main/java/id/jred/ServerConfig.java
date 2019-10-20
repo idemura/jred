@@ -8,7 +8,7 @@ import java.util.Map;
 public final class ServerConfig extends Config {
     public static final class Repo {
         private String path;
-        private String vcs;
+        private String vcs = "git";
 
         @JsonProperty("path")
         public String getPath() {
@@ -21,18 +21,18 @@ public final class ServerConfig extends Config {
         }
     }
 
-    private Map<String, Repo> repo = new HashMap<>();
+    private Map<String, Repo> repoMap = new HashMap<>();
 
     public ServerConfig() {}
 
     public static ServerConfig create(CmdLineArgs cmdLineArgs) {
         var cfg = create("server.config", ServerConfig.class);
-        cfg.useCommandLineArgs(cmdLineArgs);
+        cfg.applyCmdLineArgs(cmdLineArgs);
         return cfg;
     }
 
     @JsonProperty("repo_map")
-    public Map<String, Repo> getRepo() {
-        return repo;
+    public Map<String, Repo> getRepoMap() {
+        return repoMap;
     }
 }

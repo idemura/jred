@@ -5,7 +5,7 @@ public final class ClientConfig extends Config {
 
     public static ClientConfig create(CmdLineArgs cmdLineArgs) {
         var cfg = create("client.config", ClientConfig.class);
-        cfg.useCommandLineArgs(cmdLineArgs);
+        cfg.applyCmdLineArgs(cmdLineArgs);
         return cfg;
     }
 }

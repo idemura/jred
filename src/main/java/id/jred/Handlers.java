@@ -59,7 +59,7 @@ public final class Handlers {
     private Object copy(Request req, Response response) {
         try {
             var copyRequest = Json.read(Protocol.Copy.class, req.bodyAsBytes());
-            var repoCfg = config.getRepo().get(copyRequest.getRepo().getName());
+            var repoCfg = config.getRepoMap().get(copyRequest.getRepo().getName());
             if (repoCfg == null) {
                 return respondError(response, 400,
                         "Repo not found: " + copyRequest.getRepo().getName());
@@ -84,7 +84,7 @@ public final class Handlers {
     private Object diff(Request req, Response response) {
         try {
             var diffRequest = Json.read(Protocol.Diff.class, req.bodyAsBytes());
-            var repoCfg = config.getRepo().get(diffRequest.getRepo().getName());
+            var repoCfg = config.getRepoMap().get(diffRequest.getRepo().getName());
             if (repoCfg == null) {
                 return respondError(response, 400,
                         "Repo not found: " + diffRequest.getRepo().getName());

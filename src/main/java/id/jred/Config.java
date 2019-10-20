@@ -14,7 +14,7 @@ public abstract class Config {
 
     protected Config() {}
 
-    protected void useCommandLineArgs(CmdLineArgs cmdLineArgs) {
+    protected void applyCmdLineArgs(CmdLineArgs cmdLineArgs) {
         if (cmdLineArgs.getHost() != null) {
             this.host = cmdLineArgs.getHost();
         }

@@ -34,21 +34,21 @@ public final class App {
             switch (posArgs.get(0)) {
             case "client":
                 if (posArgs.size() < 2) {
-                    throw new AppException("Client command invalid");
+                    throw new AppException("Invalid command format");
                 }
                 app.clientCommand(posArgs.get(1), posArgs.subList(2, posArgs.size()));
                 break;
 
             case "server":
                 if (posArgs.size() != 2) {
-                    throw new AppException("Server command invalid");
+                    throw new AppException("Invalid command format");
                 }
                 app.serverCommand(posArgs.get(1));
                 break;
 
             case "update":
                 if (posArgs.size() != 1) {
-                    throw new AppException("Update command invalid");
+                    throw new AppException("Invalid command format");
                 }
                 app.update();
                 break;
