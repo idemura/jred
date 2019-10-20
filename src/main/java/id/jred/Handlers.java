@@ -84,6 +84,10 @@ public final class Handlers {
     private Object diff(Request req, Response response) {
         try {
             var diffRequest = Json.read(Protocol.Diff.class, req.bodyAsBytes());
+            if (diffRequest.getDiff().isEmpty()) {
+                // Git doesn't understand empty diff. Respond success.
+                return respondSuccess(response);
+            }
             var repoCfg = config.getRepo().get(diffRequest.getRepo().getName());
             if (repoCfg == null) {
                 return respondError(response, 400,
