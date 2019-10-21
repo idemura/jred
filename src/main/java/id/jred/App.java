@@ -19,8 +19,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 public final class App {
-    private final CmdLineArgs cmdLineArgs;
-
     public static void main(String[] args) {
         var cmdLineArgs = new CmdLineArgs(args);
         if (cmdLineArgs.isHelp() || cmdLineArgs.getPositional().isEmpty()) {
@@ -65,6 +63,8 @@ public final class App {
             System.exit(1);
         }
     }
+
+    private final CmdLineArgs cmdLineArgs;
 
     private App(CmdLineArgs cmdLineArgs) {
         this.cmdLineArgs = cmdLineArgs;
