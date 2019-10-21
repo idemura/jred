@@ -1,46 +1,33 @@
 package id.jred;
 
+import java.io.File;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Optional;
+import java.util.Scanner;
 
 public class PidFile {
     public static void create() {
-        try (var writer = new PrintWriter(
-                getPath().toString(),
-                StandardCharsets.UTF_8)) {
+        try (var writer = new PrintWriter(getPath(), StandardCharsets.UTF_8)) {
             writer.print(ProcessHandle.current().pid());
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
     }
 
-    public static boolean delete() {
-        try {
-            return Files.deleteIfExists(getPath());
+    public static void delete() {
+        getPath().delete();
+    }
+
+    public static Optional<ProcessHandle> read() {
+        try (var scanner = new Scanner(getPath())) {
+            return ProcessHandle.of(scanner.nextLong());
         } catch (Exception ex) {
-            throw new RuntimeException(ex);
+            return Optional.empty();
         }
     }
 
-    public static boolean exists(boolean checkAlive) {
-        var exists = Files.exists(getPath());
-        if (exists && checkAlive) {
-            return ProcessHandle.of(read()).isPresent();
-        }
-        return exists;
-    }
-
-    public static long read() {
-        try {
-            return Long.parseLong(Files.readString(getPath()).trim());
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-
-    private static Path getPath() {
-        return WorkDir.getPath().resolve("pid");
+    private static File getPath() {
+        return new File(Dir.getHome(), "pid");
     }
 }

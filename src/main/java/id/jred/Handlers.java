@@ -7,28 +7,27 @@ import spark.Response;
 import spark.Spark;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Optional;
+import java.util.Map;
 
 public final class Handlers {
     private static final Logger LOG = LoggerFactory.getLogger(Handlers.class);
 
-    private final ServerConfig config;
+    private final Map<String, Repo> repoMap;
 
-    public static void start(ServerConfig config) {
-        Spark.ipAddress(config.getHost());
-        Spark.port(config.getPort());
+    public static void start(String host, int port, Map<String, Repo> repoMap) {
+        Spark.ipAddress(host);
+        Spark.port(port);
 
-        var handler = new Handlers(config);
+        var handler = new Handlers(repoMap);
         Spark.get("/", handler::root);
         Spark.post("/copy", handler::copy);
         Spark.post("/diff", handler::diff);
 
         new Thread(() -> {
-            while (PidFile.exists(false /* checkAlive */)) {
+            while (PidFile.read().isPresent()) {
                 try {
                     Thread.sleep(200 /* millis */);
                 } catch (InterruptedException ex) {
@@ -39,8 +38,8 @@ public final class Handlers {
         }).start();
     }
 
-    private Handlers(ServerConfig config) {
-        this.config = config;
+    private Handlers(Map<String, Repo> repoMap) {
+        this.repoMap = repoMap;
     }
 
     private Object root(Request req, Response response) {
@@ -48,10 +47,10 @@ public final class Handlers {
             response.type(MimeType.TEXT);
             var os = new ByteArrayOutputStream();
             os.write("jred is running\n\n".getBytes(StandardCharsets.UTF_8));
-            Json.writeFormatted(config, os);
+            Json.writeFormatted(repoMap, os);
             return os.toString(StandardCharsets.UTF_8);
         } catch (Exception ex) {
-            LOG.error(ex.toString());
+            LOG.error(ex.getMessage());
             return respondError(response, 400, ex);
         }
     }
@@ -59,24 +58,24 @@ public final class Handlers {
     private Object copy(Request req, Response response) {
         try {
             var copyRequest = Json.read(Protocol.Copy.class, req.bodyAsBytes());
-            var repoCfg = config.getRepoMap().get(copyRequest.getRepo().getName());
-            if (repoCfg == null) {
+            var repo = repoMap.get(copyRequest.getRepo().getName());
+            if (repo == null) {
                 return respondError(response, 400,
                         "Repo not found: " + copyRequest.getRepo().getName());
             }
-            var repoPath = Path.of(repoCfg.getPath()).toAbsolutePath().normalize();
-            var destPath = repoPath.resolve(copyRequest.getFileName()).normalize();
-            if (!destPath.startsWith(repoPath)) {
+            var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
+            var destPath = new File(repoPath, copyRequest.getFileName()).getCanonicalFile();
+            if (!destPath.toPath().startsWith(repoPath.toPath())) {
                 return respondError(response, 400,
                         "File must belong to repo directory tree: " + copyRequest.getFileName());
             }
-            Files.createDirectories(destPath.getParent());
-            try (var stream = new FileOutputStream(destPath.toString())) {
+            destPath.getParentFile().mkdirs();
+            try (var stream = new FileOutputStream(destPath)) {
                 stream.write(copyRequest.getData().getBytes(StandardCharsets.UTF_8));
             }
             return respondSuccess(response);
         } catch (Exception ex) {
-            LOG.error(ex.toString());
+            LOG.error(ex.getMessage());
             return respondError(response, 400, ex);
         }
     }
@@ -84,27 +83,27 @@ public final class Handlers {
     private Object diff(Request req, Response response) {
         try {
             var diffRequest = Json.read(Protocol.Diff.class, req.bodyAsBytes());
-            var repoCfg = config.getRepoMap().get(diffRequest.getRepo().getName());
-            if (repoCfg == null) {
+            var repo = repoMap.get(diffRequest.getRepo().getName());
+            if (repo == null) {
                 return respondError(response, 400,
                         "Repo not found: " + diffRequest.getRepo().getName());
             }
-            var repoPath = Path.of(repoCfg.getPath()).toAbsolutePath().normalize();
-            var revision = Script.run(repoCfg.getVCS() + "/revision", Optional.of(repoPath)).trim();
+            var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
+            var revision = Script.run(repo.getVCS() + "/revision", repoPath).trim();
             if (!revision.equals(diffRequest.getRepo().getRevision())) {
                 return respondError(response, 400,
                         "Revision mismatch: server " + revision +
-                        " client " + diffRequest.getRepo().getRevision());
+                        ", client " + diffRequest.getRepo().getRevision());
             }
             if (!diffRequest.getDiff().isEmpty()) {
                 Script.run(
-                        repoCfg.getVCS() + "/apply",
-                        Optional.of(repoPath),
-                        Optional.of(diffRequest.getDiff()));
+                        repo.getVCS() + "/apply",
+                        repoPath,
+                        diffRequest.getDiff());
             }
             return respondSuccess(response);
         } catch (Exception ex) {
-            LOG.error(ex.toString());
+            LOG.error(ex.getMessage());
             return respondError(response, 400, ex);
         }
     }

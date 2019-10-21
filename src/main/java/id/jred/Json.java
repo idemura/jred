@@ -8,7 +8,7 @@ import java.io.OutputStream;
 public final class Json {
     private Json() {}
 
-    private static final ObjectMapper mapper = new ObjectMapper();
+    public static final ObjectMapper mapper = new ObjectMapper();
 
     public static <T> T read(Class<T> type, InputStream stream) {
         try {

@@ -100,7 +100,7 @@ public final class Protocol {
         }
 
         public Error(Throwable cause) {
-            this(cause.toString());
+            this(cause.getMessage());
         }
 
         @JsonProperty("msg")

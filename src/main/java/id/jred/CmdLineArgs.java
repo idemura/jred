@@ -16,12 +16,12 @@ public final class CmdLineArgs {
     @Parameter(
         names={"-h", "--host"},
         description="Host to listen to/connect")
-    private String host;
+    private String host = "127.0.0.1";
 
     @Parameter(
         names={"-p", "--port"},
         description="Port to listen to/connect")
-    private int port;
+    private int port = 8040;
 
     @Parameter(
         names={"--vcs"},
