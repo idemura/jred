@@ -2,13 +2,12 @@ package id.jred;
 
 import java.io.File;
 import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.Scanner;
 
 public class PidFile {
     public static void create() {
-        try (var writer = new PrintWriter(getPath(), StandardCharsets.UTF_8)) {
+        try (var writer = new PrintWriter(getPath())) {
             writer.print(ProcessHandle.current().pid());
         } catch (Exception ex) {
             throw new RuntimeException(ex);

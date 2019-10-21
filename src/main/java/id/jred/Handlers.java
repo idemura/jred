@@ -9,7 +9,6 @@ import spark.Spark;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public final class Handlers {
@@ -46,9 +45,9 @@ public final class Handlers {
         try {
             response.type(MimeType.TEXT);
             var os = new ByteArrayOutputStream();
-            os.write("jred is running\n\n".getBytes(StandardCharsets.UTF_8));
+            os.write("jred is running\n\n".getBytes());
             Json.writeFormatted(repoMap, os);
-            return os.toString(StandardCharsets.UTF_8);
+            return os.toString();
         } catch (Exception ex) {
             LOG.error(ex.getMessage());
             return respondError(response, 400, ex);
@@ -71,7 +70,7 @@ public final class Handlers {
             }
             destPath.getParentFile().mkdirs();
             try (var stream = new FileOutputStream(destPath)) {
-                stream.write(copyRequest.getData().getBytes(StandardCharsets.UTF_8));
+                stream.write(copyRequest.getData().getBytes());
             }
             return respondSuccess(response);
         } catch (Exception ex) {

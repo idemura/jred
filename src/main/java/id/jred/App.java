@@ -13,7 +13,6 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -177,7 +176,7 @@ public final class App {
         for (var f : untrackedFiles) {
             String data;
             try (var stream = new FileInputStream(f)) {
-                data = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+                data = new String(stream.readAllBytes());
             }
             post(buildUrl("/copy"), new Protocol.Copy(
                     repo,
@@ -194,9 +193,7 @@ public final class App {
         String registry;
         try (var registryStream = cl.getResourceAsStream("source_control/registry")) {
             if (registryStream != null) {
-                registry = new String(
-                        registryStream.readAllBytes(),
-                        StandardCharsets.UTF_8);
+                registry = new String(registryStream.readAllBytes());
             } else {
                 throw new AppException("registry not found");
             }

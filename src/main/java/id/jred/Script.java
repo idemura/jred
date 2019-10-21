@@ -2,7 +2,6 @@ package id.jred;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,13 +40,11 @@ public final class Script {
             }
             process = pb.start();
             if (stdin != null) {
-                process.getOutputStream().write(stdin.getBytes(StandardCharsets.UTF_8));
+                process.getOutputStream().write(stdin.getBytes());
                 process.getOutputStream().close();
             }
             var exitCode = process.waitFor();
-            var output = new String(
-                    process.getInputStream().readAllBytes(),
-                    StandardCharsets.UTF_8);
+            var output = new String(process.getInputStream().readAllBytes());
             if (exitCode != 0) {
                 throw new RuntimeException(
                         "Script exit code " + exitCode + ": " + output);
