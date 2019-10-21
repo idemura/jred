@@ -64,10 +64,10 @@ public final class Handlers {
                         "Repo not found: " + copyRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
-            var destPath = new File(repoPath, copyRequest.getFileName()).getCanonicalFile();
+            var destPath = new File(repoPath, copyRequest.getFile()).getCanonicalFile();
             if (!destPath.toPath().startsWith(repoPath.toPath())) {
                 return respondError(response, 400,
-                        "File must belong to repo directory tree: " + copyRequest.getFileName());
+                        "File must belong to repo directory tree: " + copyRequest.getFile());
             }
             destPath.getParentFile().mkdirs();
             try (var stream = new FileOutputStream(destPath)) {

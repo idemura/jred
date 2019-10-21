@@ -11,17 +11,14 @@ public final class Protocol {
 
         public Repo() {}
 
-        public void setName(String name) {
+        public Repo(String name, String revision) {
             this.name = name;
+            this.revision = revision;
         }
 
         @JsonProperty("name")
         public String getName() {
             return name;
-        }
-
-        public void setRevision(String revision) {
-            this.revision = revision;
         }
 
         @JsonProperty("revision")
@@ -32,13 +29,15 @@ public final class Protocol {
 
     public static final class Copy {
         private Repo repo;
-        private String fileName;
+        private String file;
         private String data;
 
         public Copy() {}
 
-        public void setRepo(Repo repo) {
+        public Copy(Repo repo, String file, String data) {
             this.repo = repo;
+            this.file = file;
+            this.data = data;
         }
 
         @JsonProperty("repo")
@@ -46,17 +45,9 @@ public final class Protocol {
             return repo;
         }
 
-        public void setFileName(String fileName) {
-            this.fileName = fileName;
-        }
-
-        @JsonProperty("file_name")
-        public String getFileName() {
-            return fileName;
-        }
-
-        public void setData(String data) {
-            this.data = data;
+        @JsonProperty("file")
+        public String getFile() {
+            return file;
         }
 
         @JsonProperty("data")
@@ -71,17 +62,14 @@ public final class Protocol {
 
         public Diff() {}
 
-        public void setRepo(Repo repo) {
+        public Diff(Repo repo, String diff) {
             this.repo = repo;
+            this.diff = diff;
         }
 
         @JsonProperty("repo")
         public Repo getRepo() {
             return repo;
-        }
-
-        public void setDiff(String diff) {
-            this.diff = diff;
         }
 
         @JsonProperty("diff")
@@ -93,7 +81,7 @@ public final class Protocol {
     public static final class Error {
         private String errorMsg;
 
-        public Error() {}
+        public Error() {} // No error
 
         public Error(String errorMsg) {
             this.errorMsg = errorMsg;

@@ -1,5 +1,8 @@
 package id.jred;
 
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.Parameters;
 import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.io.File;
@@ -20,101 +23,134 @@ import java.util.concurrent.Future;
 
 public final class App {
     public static void main(String[] args) {
-        var cmdLineArgs = new CmdLineArgs(args);
-        if (cmdLineArgs.isHelp() || cmdLineArgs.getPositional().isEmpty()) {
-            cmdLineArgs.printHelp();
-            return;
-        }
-
         try {
-            var app = new App(cmdLineArgs);
-            if (Dir.createHome()) {
-                app.update();
-            }
-
-            var posArgs = cmdLineArgs.getPositional();
-            switch (posArgs.get(0)) {
-            case "server":
-                if (posArgs.size() != 2) {
-                    throw new AppException("Invalid command format");
-                }
-                app.serverCommand(posArgs.get(1));
-                break;
-
-            case "submit":
-                if (posArgs.size() != 1) {
-                    throw new AppException("Invalid command format");
-                }
-                app.submit(cmdLineArgs.getVCS());
-                break;
-
-            case "update":
-                if (posArgs.size() != 1) {
-                    throw new AppException("Invalid command format");
-                }
-                app.update();
-                break;
-
-            default:
-                throw new AppException("Invalid command: " + posArgs.get(0));
-            }
+            var app = new App(args);
+            app.run();
         } catch (Exception ex) {
             System.err.println(ex.getMessage());
             System.exit(1);
         }
     }
 
-    private final CmdLineArgs cmdLineArgs;
-
-    private App(CmdLineArgs cmdLineArgs) {
-        this.cmdLineArgs = cmdLineArgs;
+    @Parameters(commandDescription="Start server")
+    private static final class CommandServer {
+        @Parameter(
+            names={"-s", "--stop"},
+            description="Stop running server")
+        private boolean stop = false;
     }
 
-    private void serverCommand(String command) throws IOException {
-        switch (command) {
-        case "start": {
-            Optional<ProcessHandle> ph = PidFile.read();
-            if (ph.filter(ProcessHandle::isAlive).isPresent()) {
-                System.out.println("Server is running, pid=" + ph.get().pid());
-                break;
+    @Parameters(commandDescription="Submit files and diff")
+    private static final class CommandSubmit {
+    }
+
+    @Parameters(commandDescription="Update home dir files")
+    private static final class CommandUpdate {
+    }
+
+    private final JCommander jcmd;
+    private final CommandServer cmdServer = new CommandServer();
+    private final CommandSubmit cmdSubmit = new CommandSubmit();
+    private final CommandUpdate cmdUpdate = new CommandUpdate();
+
+    @Parameter(names={"--help"}, help=true)
+    private boolean help;
+
+    @Parameter(
+        names={"-h", "--host"},
+        description="Host to connect/listen")
+    private String host = "127.0.0.1";
+
+    @Parameter(
+        names={"-p", "--port"},
+        description="Port to connect/listen")
+    private int port = 8040;
+
+    @Parameter(
+        names={"--vcs"},
+        description="Version control system")
+    private String vcs = "git";
+
+    private App(String[] args) {
+        this.jcmd = JCommander.newBuilder()
+            .addObject(this)
+            .addCommand("server", cmdServer)
+            .addCommand("submit", cmdSubmit)
+            .addCommand("update", cmdUpdate)
+            .programName("jred")
+            .args(args)
+            .build();
+    }
+
+    private void run() throws IOException {
+        if (help) {
+            jcmd.usage();
+            return;
+        }
+
+        if (Dir.createHome()) {
+            update();
+        }
+
+        switch (jcmd.getParsedCommand()) {
+        case "server":
+            if (cmdServer.stop) {
+                stopServer();
+            } else {
+                server();
             }
-            PidFile.create();
+            break;
+        case "submit":
+            submit(vcs);
+            break;
+        case "update":
+            update();
+            break;
+        }
+    }
+
+    private void server() throws IOException {
+        Optional<ProcessHandle> ph = PidFile.read();
+        if (ph.filter(ProcessHandle::isAlive).isPresent()) {
+            System.out.println("Server is running, pid=" + ph.get().pid());
+            return;
+        }
+        PidFile.create();
+        try {
+            Map<String, Repo> repoMap = Json.mapper.readValue(
+                    new File(Dir.getHome(), "repo_map"),
+                    new TypeReference<HashMap<String, Repo>>() {});
+            Handlers.start(host, port, repoMap);
+        } catch (IOException ex) {
+            PidFile.delete();
+            throw ex;
+        }
+    }
+
+    private void stopServer() {
+        Optional<ProcessHandle> ph = PidFile.read();
+        if (ph.isPresent()) {
+            PidFile.delete();
+            Future<ProcessHandle> future = ph.get().onExit();
             try {
-                Map<String, Repo> repoMap = Json.mapper.readValue(
-                        new File(Dir.getHome(), "repo_map"),
-                        new TypeReference<HashMap<String, Repo>>() {});
-                Handlers.start(cmdLineArgs.getHost(), cmdLineArgs.getPort(), repoMap);
-            } catch (Exception ex) {
-                PidFile.delete();
-                throw ex;
+                future.get();
+            } catch (InterruptedException | ExecutionException ex) {
+                throw new AppException(ex.getMessage());
             }
-            break;
-        }
-        case "stop": {
-            Optional<ProcessHandle> ph = PidFile.read();
-            if (ph.isPresent()) {
-                PidFile.delete();
-                Future<ProcessHandle> future = ph.get().onExit();
-                try {
-                    future.get();
-                } catch (InterruptedException | ExecutionException ex) {
-                    throw new AppException(ex.getMessage());
-                }
-                System.out.println("Server process " + ph.get().pid() + " stopped");
-            }
-            break;
-        }
-        default:
-            throw new AppException("Invalid server command: " + command);
+            System.out.println("Server process " + ph.get().pid() + " stopped");
+        } else {
+            System.out.println("Server is not running");
         }
     }
 
     // We have vcs argument because we want to detect it actually.
     private void submit(String vcs) throws IOException {
         var currentDir = Dir.getCurrent();
-        var repo = initRepo(currentDir, vcs);
-        var status = Script.run(vcs + "/status").split("\n");
+        var repo = new Protocol.Repo(
+                currentDir.getName(),
+                Script.run(vcs + "/revision").trim());
 
+        var status = Script.run(vcs + "/status").split("\n");
         var untrackedFiles = new ArrayList<File>();
         for (var s : status) {
             if ("??".equals(s.substring(0, 2))) {
@@ -138,20 +174,19 @@ public final class App {
             }
         }
 
-        var copyRequest = new Protocol.Copy();
-        copyRequest.setRepo(repo);
         for (var f : untrackedFiles) {
-            copyRequest.setFileName(currentDir.toPath().relativize(f.toPath()).toString());
+            String data;
             try (var stream = new FileInputStream(f)) {
-                copyRequest.setData(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+                data = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             }
-            post(buildUrl("/copy"), copyRequest);
+            post(buildUrl("/copy"), new Protocol.Copy(
+                    repo,
+                    currentDir.toPath().relativize(f.toPath()).toString(),
+                    data));
         }
 
-        var diffRequest = new Protocol.Diff();
-        diffRequest.setRepo(repo);
-        diffRequest.setDiff(Script.run(vcs + "/diff"));
-        post(buildUrl("/diff"), diffRequest);
+        var diff = Script.run(vcs + "/diff");
+        post(buildUrl("/diff"), new Protocol.Diff(repo, diff));
     }
 
     private void update() throws IOException {
@@ -172,14 +207,7 @@ public final class App {
                 copyOpFiles(cl, name);
             }
         }
-        System.out.println("Scripts updated");
-    }
-
-    private static Protocol.Repo initRepo(File absCurrDir, String vcs) {
-        var repo = new Protocol.Repo();
-        repo.setName(absCurrDir.getName());
-        repo.setRevision(Script.run(vcs + "/revision").trim());
-        return repo;
+        System.out.println("Home dir updated");
     }
 
     private URL buildUrl(String path) throws IOException {
@@ -187,8 +215,8 @@ public final class App {
             return new URI(
                     "http",
                     null,
-                    cmdLineArgs.getHost(),
-                    cmdLineArgs.getPort(),
+                    host,
+                    port,
                     path,
                     null,
                     null).toURL();
@@ -231,13 +259,13 @@ public final class App {
         }
     }
 
-    private static final String[] vcsActions = {"apply", "diff", "status", "revision"};
+    private static final String[] vcsFiles = {"apply", "diff", "status", "revision"};
 
     private static void copyOpFiles(ClassLoader cl, String name) throws IOException {
         var destPath = new File(Dir.getHome(), name);
         destPath.mkdir();
         var prefix = "source_control/" + name + "/";
-        for (var a : vcsActions) {
+        for (var a : vcsFiles) {
             var qualifiedName = prefix + a;
             try (var is = cl.getResourceAsStream(qualifiedName)) {
                 if (is == null) {
