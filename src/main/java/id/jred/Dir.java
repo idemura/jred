@@ -1,6 +1,7 @@
 package id.jred;
 
 import java.io.File;
+import java.io.IOException;
 
 public final class Dir {
     private Dir() {}
@@ -13,11 +14,7 @@ public final class Dir {
         return new File(System.getProperty("user.home"), ".jred");
     }
 
-    public static File getCurrent() {
-        try {
-            return new File(".").getAbsoluteFile().getCanonicalFile();
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+    public static File getCurrent() throws IOException {
+        return new File(".").getAbsoluteFile().getCanonicalFile();
     }
 }

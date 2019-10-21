@@ -1,16 +1,16 @@
 package id.jred;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Optional;
 import java.util.Scanner;
 
-public class PidFile {
-    public static void create() {
+public final class PidFile {
+    public static void create() throws IOException
+    {
         try (var writer = new PrintWriter(getPath())) {
             writer.print(ProcessHandle.current().pid());
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
         }
     }
 

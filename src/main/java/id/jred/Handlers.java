@@ -9,6 +9,8 @@ import spark.Spark;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.Map;
 
 public final class Handlers {
@@ -45,12 +47,14 @@ public final class Handlers {
         try {
             response.type(MimeType.TEXT);
             var os = new ByteArrayOutputStream();
-            os.write("jred is running\n\n".getBytes());
-            Json.writeFormatted(repoMap, os);
+            try (var writer = new PrintWriter(os)) {
+                writer.println("jred is running");
+                writer.println();
+                Json.writeFormatted(repoMap, os);
+            }
             return os.toString();
-        } catch (Exception ex) {
-            LOG.error(ex.getMessage());
-            return respondError(response, 400, ex);
+        } catch (IOException ex) {
+            return renderCatch(response, ex);
         }
     }
 
@@ -59,23 +63,22 @@ public final class Handlers {
             var copyRequest = Json.read(Protocol.Copy.class, req.bodyAsBytes());
             var repo = repoMap.get(copyRequest.getRepo().getName());
             if (repo == null) {
-                return respondError(response, 400,
+                return renderError(response, 400,
                         "Repo not found: " + copyRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
             var destPath = new File(repoPath, copyRequest.getFile()).getCanonicalFile();
             if (!destPath.toPath().startsWith(repoPath.toPath())) {
-                return respondError(response, 400,
+                return renderError(response, 400,
                         "File must belong to repo directory tree: " + copyRequest.getFile());
             }
             destPath.getParentFile().mkdirs();
             try (var stream = new FileOutputStream(destPath)) {
                 stream.write(copyRequest.getData().getBytes());
             }
-            return respondSuccess(response);
-        } catch (Exception ex) {
-            LOG.error(ex.getMessage());
-            return respondError(response, 400, ex);
+            return renderSuccess(response);
+        } catch (IOException ex) {
+            return renderCatch(response, ex);
         }
     }
 
@@ -84,13 +87,13 @@ public final class Handlers {
             var diffRequest = Json.read(Protocol.Diff.class, req.bodyAsBytes());
             var repo = repoMap.get(diffRequest.getRepo().getName());
             if (repo == null) {
-                return respondError(response, 400,
+                return renderError(response, 400,
                         "Repo not found: " + diffRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
             var revision = Script.run(repo.getVCS() + "/revision", repoPath).trim();
             if (!revision.equals(diffRequest.getRepo().getRevision())) {
-                return respondError(response, 400,
+                return renderError(response, 400,
                         "Revision mismatch: server " + revision +
                         ", client " + diffRequest.getRepo().getRevision());
             }
@@ -100,24 +103,39 @@ public final class Handlers {
                         repoPath,
                         diffRequest.getDiff());
             }
-            return respondSuccess(response);
-        } catch (Exception ex) {
-            LOG.error(ex.getMessage());
-            return respondError(response, 400, ex);
+            return renderSuccess(response);
+        } catch (InterruptedException | IOException ex) {
+            return renderCatch(response, ex);
         }
     }
 
-    private static String respondSuccess(Response response) {
-        return respondError(response, 200, "");
+    private static String renderSuccess(Response response)
+            throws IOException {
+        return renderJson(response, 200, "");
     }
 
-    private static String respondError(Response response, int code, Exception ex) {
-        return respondError(response, code, ex.getMessage());
+    private static String renderError(Response response, int code, String message)
+            throws IOException {
+        return renderJson(response, code, message);
     }
 
-    private static String respondError(Response response, int code, String errorMsg) {
-        response.status(code);
+    private static String renderCatch(Response response, Exception cause) {
+        LOG.error("Error: {}", cause.getMessage());
+        try {
+            return renderJson(response, 500, cause.getMessage());
+        } catch (IOException ex) {
+            LOG.error("Fatal: {}", ex.getMessage());
+            response.status(500);
+            return null;
+        }
+    }
+
+    private static String renderJson(Response response, int code, String message)
+            throws IOException {
+        // If it throws, MIME type shouldn't be set.
+        var text = Json.writeString(new Protocol.Error(message));
         response.type(MimeType.JSON);
-        return Json.writeString(new Protocol.Error(errorMsg));
+        response.status(code);
+        return text;
     }
 }

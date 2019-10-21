@@ -19,15 +19,18 @@ public final class Script {
         }
     }
 
-    public static String run(String name) {
+    public static String run(String name)
+            throws InterruptedException, IOException {
         return run(name, null, null);
     }
 
-    public static String run(String name, File workDir) {
+    public static String run(String name, File workDir)
+            throws InterruptedException, IOException {
         return run(name, workDir, null);
     }
 
-    public static String run(String name, File workDir, String stdin) {
+    public static String run(String name, File workDir, String stdin)
+            throws InterruptedException, IOException {
         Process process = null;
         try {
             var command = new ArrayList<>(SHELL);
@@ -46,12 +49,11 @@ public final class Script {
             var exitCode = process.waitFor();
             var output = new String(process.getInputStream().readAllBytes());
             if (exitCode != 0) {
-                throw new RuntimeException(
+                // Normal IO with process is not possible.
+                throw new IOException(
                         "Script exit code " + exitCode + ": " + output);
             }
             return output;
-        } catch (InterruptedException | IOException ex) {
-            throw new RuntimeException("Run script error", ex);
         } finally {
             if (process != null) {
                 process.destroy();

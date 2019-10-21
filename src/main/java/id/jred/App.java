@@ -81,7 +81,7 @@ public final class App {
             .build();
     }
 
-    private void run() throws IOException {
+    private void run() throws InterruptedException, IOException {
         if (help) {
             jcmd.usage();
             return;
@@ -143,7 +143,8 @@ public final class App {
     }
 
     // We have vcs argument because we want to detect it actually.
-    private void submit(String vcs) throws IOException {
+    private void submit(String vcs)
+            throws InterruptedException, IOException {
         var currentDir = Dir.getCurrent();
         var repo = new Protocol.Repo(
                 currentDir.getName(),
@@ -242,7 +243,7 @@ public final class App {
             try (var es = connection.getErrorStream()) {
                 String msg;
                 if (es != null) {
-                    msg = Json.read(Protocol.Error.class, es).getErrorMsg();
+                    msg = Json.read(Protocol.Error.class, es).getMessage();
                 } else {
                     msg = "HTTP error code: " + connection.getResponseCode();
                 }

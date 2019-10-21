@@ -79,21 +79,19 @@ public final class Protocol {
     }
 
     public static final class Error {
-        private String errorMsg;
+        private final String message;
 
-        public Error() {} // No error
-
-        public Error(String errorMsg) {
-            this.errorMsg = errorMsg;
+        public Error() {
+            this("");
         }
 
-        public Error(Throwable cause) {
-            this(cause.getMessage());
+        public Error(String message) {
+            this.message = message;
         }
 
         @JsonProperty("msg")
-        public String getErrorMsg() {
-            return errorMsg;
+        public String getMessage() {
+            return message;
         }
     }
 }
