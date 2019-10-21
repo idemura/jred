@@ -56,7 +56,7 @@ public final class App {
                 break;
 
             default:
-                throw new AppException("Invalid mode: " + posArgs.get(0));
+                throw new AppException("Invalid command: " + posArgs.get(0));
             }
         } catch (Exception ex) {
             System.err.println(ex.getMessage());
