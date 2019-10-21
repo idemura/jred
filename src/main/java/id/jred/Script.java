@@ -1,10 +1,24 @@
 package id.jred;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public final class Script {
     private Script() {}
+
+    private static final List<String> SHELL = new ArrayList<>();
+    static {
+        if (System.getenv().containsKey("JRED_SHELL")) {
+            Collections.addAll(SHELL, System.getenv().get("JRED_SHELL").split(" "));
+            SHELL.removeIf(String::isEmpty);
+        } else {
+            Collections.addAll(SHELL, "/bin/bash", "-e");
+        }
+    }
 
     public static String run(String name) {
         return run(name, null, null);
@@ -17,10 +31,10 @@ public final class Script {
     public static String run(String name, File workDir, String stdin) {
         Process process = null;
         try {
-            var pb = new ProcessBuilder(
-                    "/bin/bash",
-                    "-e",
-                    new File(Dir.getHome(), name).toString());
+            var command = new ArrayList<>(SHELL);
+            command.add(new File(Dir.getHome(), name).toString());
+
+            var pb = new ProcessBuilder(command);
             pb.redirectErrorStream(true);
             if (workDir != null) {
                 pb.directory(workDir);
@@ -39,8 +53,8 @@ public final class Script {
                         "Script exit code " + exitCode + ": " + output);
             }
             return output;
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
+        } catch (InterruptedException | IOException ex) {
+            throw new RuntimeException("Run script error", ex);
         } finally {
             if (process != null) {
                 process.destroy();
