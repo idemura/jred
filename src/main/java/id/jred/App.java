@@ -65,11 +65,6 @@ public final class App {
         description="Port to connect/listen")
     private int port = 8040;
 
-    @Parameter(
-        names={"--vcs"},
-        description="Version control system")
-    private String vcs = "git";
-
     private App(String[] args) {
         this.jcmd = JCommander.newBuilder()
             .addObject(this)
@@ -100,7 +95,7 @@ public final class App {
             }
             break;
         case "submit":
-            submit(vcs);
+            submit();
             break;
         case "update":
             update();
@@ -143,14 +138,14 @@ public final class App {
     }
 
     // We have vcs argument because we want to detect it actually.
-    private void submit(String vcs)
+    private void submit()
             throws InterruptedException, IOException {
         var currentDir = Dir.getCurrent();
         var repo = new Protocol.Repo(
                 currentDir.getName(),
-                Script.run(vcs + "/revision").trim());
+                Script.run("git/revision").trim());
 
-        var status = Script.run(vcs + "/status").split("\n");
+        var status = Script.run("git/status").split("\n");
         var untrackedFiles = new ArrayList<File>();
         for (var s : status) {
             if ("??".equals(s.substring(0, 2))) {
@@ -185,26 +180,12 @@ public final class App {
                     data));
         }
 
-        var diff = Script.run(vcs + "/diff");
+        var diff = Script.run("git/diff");
         post(buildUrl("/diff"), new Protocol.Diff(repo, diff));
     }
 
     private void update() throws IOException {
-        var cl = App.class.getClassLoader();
-        String registry;
-        try (var registryStream = cl.getResourceAsStream("source_control/registry")) {
-            if (registryStream != null) {
-                registry = new String(registryStream.readAllBytes());
-            } else {
-                throw new AppException("registry not found");
-            }
-        }
-        for (var name : registry.split("\n")) {
-            name = name.trim();
-            if (!name.isEmpty()) {
-                copyOpFiles(cl, name);
-            }
-        }
+        copyScripts(App.class.getClassLoader(), "git");
         System.out.println("Home dir updated");
     }
 
@@ -257,13 +238,11 @@ public final class App {
         }
     }
 
-    private static final String[] vcsFiles = {"apply", "diff", "status", "revision"};
-
-    private static void copyOpFiles(ClassLoader cl, String name) throws IOException {
-        var destPath = new File(Dir.getHome(), name);
+    private static void copyScripts(ClassLoader cl, String dirName) throws IOException {
+        var destPath = new File(Dir.getHome(), dirName);
         destPath.mkdir();
-        var prefix = "source_control/" + name + "/";
-        for (var a : vcsFiles) {
+        var prefix = dirName + "/";
+        for (var a : new String[]{"apply", "diff", "revision", "status"}) {
             var qualifiedName = prefix + a;
             try (var is = cl.getResourceAsStream(qualifiedName)) {
                 if (is == null) {
