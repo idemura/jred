@@ -94,4 +94,24 @@ public final class Protocol {
             return message;
         }
     }
+
+    public static Repo repo(String name, String revision) {
+        return new Repo(name, revision);
+    }
+
+    public static Copy copy(Repo repo, String file, String data) {
+        return new Copy(repo, file, data);
+    }
+
+    public static Diff diff(Repo repo, String diff) {
+        return new Diff(repo, diff);
+    }
+
+    public static Error error() {
+        return new Error();
+    }
+
+    public static Error error(String message) {
+        return new Error(message);
+    }
 }

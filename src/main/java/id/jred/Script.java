@@ -1,5 +1,8 @@
 package id.jred;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -7,6 +10,8 @@ import java.util.Collections;
 import java.util.List;
 
 public final class Script {
+    private static final Logger LOG = LoggerFactory.getLogger("jred");
+
     private Script() {}
 
     private static final List<String> SHELL = new ArrayList<>();
@@ -30,21 +35,25 @@ public final class Script {
         try {
             var command = new ArrayList<>(SHELL);
             command.add(new File(Dir.getHome(), name).toString());
+            LOG.debug("Run `{}` in {}", String.join(" ", command), workDir.toString());
 
             var pb = new ProcessBuilder(command);
             pb.redirectErrorStream(true);
-            if (workDir != null) {
-                pb.directory(workDir);
-            }
+            pb.directory(workDir); // Accepts null
+            LOG.debug("Starting process");
             process = pb.start();
             if (stdin != null) {
+                LOG.debug("Sending stdin");
                 process.getOutputStream().write(stdin.getBytes());
                 process.getOutputStream().close();
             }
-            var exitCode = process.waitFor();
+            LOG.debug("Reading stdout/stderr");
             var output = new String(process.getInputStream().readAllBytes());
+
+            LOG.debug("Waiting to finish...");
+            var exitCode = process.waitFor();
+            LOG.debug("Process exit code {}", exitCode);
             if (exitCode != 0) {
-                var sb = new StringBuilder();
                 if (output.endsWith("\n")) {
                     output = output.substring(0, output.length() - 1);
                 }
@@ -56,6 +65,7 @@ public final class Script {
             return output;
         } finally {
             if (process != null) {
+                LOG.debug("Destroy process");
                 process.destroy();
             }
         }

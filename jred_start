@@ -1,6 +1,8 @@
 #! /bin/bash -e
 
+LOG=org.slf4j.simpleLogger.defaultLogLevel=debug
+JAR=${JRED_PATH:-$(dirname $0)}/jred-all.jar
 mkdir -p $HOME/.jred
-nohup java -XX:+UseG1GC -jar $(dirname $0)/${JRED_PATH}jred-all.jar "$@" server \
+nohup java -XX:+UseG1GC -D$LOG -jar $JAR "$@" server \
     < /dev/null \
     > $HOME/.jred/server.log 2>&1 &

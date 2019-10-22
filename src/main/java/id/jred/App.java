@@ -4,6 +4,8 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.fasterxml.jackson.core.type.TypeReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -23,6 +25,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 public final class App {
+    private static final Logger LOG = LoggerFactory.getLogger("jred");
+
     public static void main(String[] args) {
         try {
             var app = new App(args);
@@ -117,16 +121,23 @@ public final class App {
         }
         var pid = PidFile.create();
         try {
+            LOG.debug("Reading repo_map");
             Map<String, Repo> repoMap = Json.mapper.readValue(
                     new File(Dir.getHome(), "repo_map"),
                     new TypeReference<HashMap<String, Repo>>() {});
+
+            LOG.debug("Substitute env vars");
             substituteEnvVars(repoMap);
+
+            LOG.debug("Start server host={} port={}", host, port);
             Handlers.start(host, port, repoMap);
         } catch (IOException ex) {
             PidFile.delete();
             throw ex;
         }
-        System.out.println("Server started, pid=" + pid);
+        System.out.println("Server started, pid=" + pid +
+                " host=" + host +
+                " port=" + port);
     }
 
     private static void substituteEnvVars(Map<String, Repo> repoMap) throws IOException {
@@ -172,13 +183,16 @@ public final class App {
     // We have vcs argument because we want to detect it actually.
     private void submit()
             throws InterruptedException, IOException {
+        LOG.debug("Submit to host={} port={}", host, port);
         var repoDir = Dir.getParentWithFile(Dir.getCurrent(), ".git");
         if (repoDir == null) {
             throw new IOException("Path to .git not found in " + Dir.getCurrent());
         }
-        var repo = new Protocol.Repo(
+        LOG.debug("repoDir={}", repoDir.toString());
+        var repo = Protocol.repo(
                 repoDir.getName(),
                 Script.run("git/revision", repoDir).trim());
+        LOG.debug("Repo name={} revision={}", repo.getName(), repo.getRevision());
 
         var status = Script.run("git/status", repoDir).split("\n");
         var untrackedFiles = new ArrayList<File>();
@@ -204,19 +218,20 @@ public final class App {
             }
         }
 
+        LOG.debug("{} untracked files", untrackedFiles.size());
         for (var f : untrackedFiles) {
             String data;
             try (var stream = new FileInputStream(f)) {
                 data = new String(stream.readAllBytes());
             }
-            post(buildUrl("/copy"), new Protocol.Copy(
+            post(buildUrl("/copy"), Protocol.copy(
                     repo,
                     repoDir.toPath().relativize(f.toPath()).toString(),
                     data));
         }
 
         var diff = Script.run("git/diff", repoDir);
-        post(buildUrl("/diff"), new Protocol.Diff(repo, diff));
+        post(buildUrl("/diff"), Protocol.diff(repo, diff));
     }
 
     private void update() throws IOException {
@@ -240,6 +255,7 @@ public final class App {
     }
 
     private static byte[] post(URL url, Object request) throws IOException {
+        LOG.debug("POST to {}", url.toString());
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) url.openConnection();
@@ -248,13 +264,16 @@ public final class App {
             connection.setRequestProperty("Accept", MimeType.JSON);
             connection.setDoInput(true);
             connection.setDoOutput(true);
+            LOG.debug("POST: writing payload");
             try (var os = connection.getOutputStream()) {
                 Json.write(request, os);
             }
+            LOG.debug("POST: reading response");
             try (var is = connection.getInputStream()) {
                 return is.readAllBytes();
             }
         } catch (IOException ex) {
+            LOG.debug("POST: IO exception {}", ex.getMessage());
             try (var es = connection.getErrorStream()) {
                 String msg;
                 if (es != null) {
@@ -266,6 +285,7 @@ public final class App {
             }
         } finally {
             if (connection != null) {
+                LOG.debug("POST: disconnect");
                 connection.disconnect();
             }
         }
