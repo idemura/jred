@@ -2,6 +2,7 @@
 
 LOG=org.slf4j.simpleLogger.defaultLogLevel=debug
 JAR=${JRED_PATH:-$(dirname $0)}/jred-all.jar
+
 mkdir -p $HOME/.jred
 nohup java -XX:+UseG1GC -D$LOG -jar $JAR "$@" server \
     < /dev/null \

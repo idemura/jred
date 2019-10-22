@@ -2,4 +2,5 @@
 
 LOG=org.slf4j.simpleLogger.defaultLogLevel=debug
 JAR=${JRED_PATH:-$(dirname $0)}/jred-all.jar
+
 java -XX:+UseG1GC -D$LOG -jar $JAR "$@"
