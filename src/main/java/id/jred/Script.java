@@ -44,9 +44,14 @@ public final class Script {
             var exitCode = process.waitFor();
             var output = new String(process.getInputStream().readAllBytes());
             if (exitCode != 0) {
+                var sb = new StringBuilder();
+                if (output.endsWith("\n")) {
+                    output = output.substring(0, output.length() - 1);
+                }
                 // Normal IO with process is not possible.
                 throw new IOException(
-                        "Script exit code " + exitCode + ": " + output);
+                        "Script " + name + " exit code " + exitCode +
+                        "\n" + output);
             }
             return output;
         } finally {

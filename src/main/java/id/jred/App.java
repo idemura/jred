@@ -144,6 +144,7 @@ public final class App {
                 return "";
             });
             if (error[0] != null) {
+                // IO error because path is not valid
                 throw new IOException("Unknown env variable: " + error[0]);
             }
             r.setPath(subst);
