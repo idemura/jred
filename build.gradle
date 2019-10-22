@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'id.jred'
-version = '12'
+version = '13'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_11
