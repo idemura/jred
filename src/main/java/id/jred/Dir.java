@@ -17,4 +17,11 @@ public final class Dir {
     public static File getCurrent() throws IOException {
         return new File(".").getAbsoluteFile().getCanonicalFile();
     }
+
+    public static File getParentWithFile(File dir, String name) {
+        while (dir != null && !new File(dir, name).exists()) {
+            dir = dir.getParentFile();
+        }
+        return dir;
+    }
 }

@@ -79,7 +79,7 @@ public final class Protocol {
     }
 
     public static final class Error {
-        private final String message;
+        private String message;
 
         public Error() {
             this("");
@@ -89,7 +89,7 @@ public final class Protocol {
             this.message = message;
         }
 
-        @JsonProperty("msg")
+        @JsonProperty("message")
         public String getMessage() {
             return message;
         }

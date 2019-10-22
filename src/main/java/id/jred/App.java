@@ -16,9 +16,11 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 
 public final class App {
     public static void main(String[] args) {
@@ -26,8 +28,7 @@ public final class App {
             var app = new App(args);
             app.run();
         } catch (Exception ex) {
-            System.err.println(ex.getMessage());
-            System.exit(1);
+            reportExceptionAndQuit(ex);
         }
     }
 
@@ -76,6 +77,11 @@ public final class App {
             .build();
     }
 
+    private static void reportExceptionAndQuit(Throwable ex) {
+        System.err.println("Exception: " + ex.getMessage());
+        System.exit(1);
+    }
+
     private void run() throws InterruptedException, IOException {
         if (help) {
             jcmd.usage();
@@ -104,48 +110,76 @@ public final class App {
     }
 
     private void server() throws IOException {
-        Optional<ProcessHandle> ph = PidFile.read();
-        if (ph.filter(ProcessHandle::isAlive).isPresent()) {
-            System.out.println("Server is running, pid=" + ph.get().pid());
+        ProcessHandle ph = PidFile.read();
+        if (ph != null && ph.isAlive()) {
+            System.out.println("Server is running, pid=" + ph.pid());
             return;
         }
-        PidFile.create();
+        var pid = PidFile.create();
         try {
             Map<String, Repo> repoMap = Json.mapper.readValue(
                     new File(Dir.getHome(), "repo_map"),
                     new TypeReference<HashMap<String, Repo>>() {});
+            substituteEnvVars(repoMap);
             Handlers.start(host, port, repoMap);
         } catch (IOException ex) {
             PidFile.delete();
             throw ex;
         }
+        System.out.println("Server started, pid=" + pid);
+    }
+
+    private static void substituteEnvVars(Map<String, Repo> repoMap) throws IOException {
+        var pattern = Pattern.compile("\\$\\{(.+?)}");
+        var env = System.getenv();
+        for (var r : repoMap.values()) {
+            var matcher = pattern.matcher(r.getPath());
+            var error = new String[1];
+            var subst = matcher.replaceAll(m -> {
+                var g = m.group(1);
+                if (env.containsKey(g)) {
+                    return env.get(g);
+                }
+                if (error[0] == null) error[0] = g;
+                return "";
+            });
+            if (error[0] != null) {
+                throw new IOException("Unknown env variable: " + error[0]);
+            }
+            r.setPath(subst);
+        }
     }
 
     private void stopServer() {
-        Optional<ProcessHandle> ph = PidFile.read();
-        if (ph.isPresent()) {
+        ProcessHandle ph = PidFile.read();
+        if (ph != null) {
             PidFile.delete();
-            Future<ProcessHandle> future = ph.get().onExit();
-            try {
-                future.get();
-            } catch (InterruptedException | ExecutionException ex) {
-                throw new AppException(ex.getMessage());
+            if (ph.isAlive()) {
+                Future<ProcessHandle> future = ph.onExit();
+                try {
+                    future.get(3, TimeUnit.SECONDS);
+                } catch (InterruptedException | ExecutionException | TimeoutException ex) {
+                    reportExceptionAndQuit(ex);
+                }
+                System.out.println("Server pid=" + ph.pid() + " stopped");
+                return;
             }
-            System.out.println("Server process " + ph.get().pid() + " stopped");
-        } else {
-            System.out.println("Server is not running");
         }
+        System.out.println("Server is not running");
     }
 
     // We have vcs argument because we want to detect it actually.
     private void submit()
             throws InterruptedException, IOException {
-        var currentDir = Dir.getCurrent();
+        var repoDir = Dir.getParentWithFile(Dir.getCurrent(), ".git");
+        if (repoDir == null) {
+            throw new IOException("Path to .git not found in " + Dir.getCurrent());
+        }
         var repo = new Protocol.Repo(
-                currentDir.getName(),
-                Script.run("git/revision").trim());
+                repoDir.getName(),
+                Script.run("git/revision", repoDir).trim());
 
-        var status = Script.run("git/status").split("\n");
+        var status = Script.run("git/status", repoDir).split("\n");
         var untrackedFiles = new ArrayList<File>();
         for (var s : status) {
             if ("??".equals(s.substring(0, 2))) {
@@ -176,11 +210,11 @@ public final class App {
             }
             post(buildUrl("/copy"), new Protocol.Copy(
                     repo,
-                    currentDir.toPath().relativize(f.toPath()).toString(),
+                    repoDir.toPath().relativize(f.toPath()).toString(),
                     data));
         }
 
-        var diff = Script.run("git/diff");
+        var diff = Script.run("git/diff", repoDir);
         post(buildUrl("/diff"), new Protocol.Diff(repo, diff));
     }
 
@@ -220,7 +254,6 @@ public final class App {
                 return is.readAllBytes();
             }
         } catch (IOException ex) {
-            AppException appEx;
             try (var es = connection.getErrorStream()) {
                 String msg;
                 if (es != null) {
@@ -228,9 +261,8 @@ public final class App {
                 } else {
                     msg = "HTTP error code: " + connection.getResponseCode();
                 }
-                appEx = new AppException(msg);
+                throw new IOException(msg, ex);
             }
-            throw appEx;
         } finally {
             if (connection != null) {
                 connection.disconnect();

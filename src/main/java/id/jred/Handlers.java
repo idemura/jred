@@ -28,7 +28,7 @@ public final class Handlers {
         Spark.post("/diff", handler::diff);
 
         new Thread(() -> {
-            while (PidFile.read().isPresent()) {
+            while (PidFile.read() != null) {
                 try {
                     Thread.sleep(200 /* millis */);
                 } catch (InterruptedException ex) {
@@ -50,6 +50,7 @@ public final class Handlers {
             try (var writer = new PrintWriter(os)) {
                 writer.println("jred is running");
                 writer.println();
+                writer.flush(); // Must be here, or repo map will be before
                 Json.writeFormatted(repoMap, os);
             }
             return os.toString();
@@ -91,7 +92,7 @@ public final class Handlers {
                         "Repo not found: " + diffRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
-            var revision = Script.run(repo.getVCS() + "/revision", repoPath).trim();
+            var revision = Script.run("git/revision", repoPath).trim();
             if (!revision.equals(diffRequest.getRepo().getRevision())) {
                 return renderError(response, 400,
                         "Revision mismatch: server " + revision +
@@ -99,7 +100,7 @@ public final class Handlers {
             }
             if (!diffRequest.getDiff().isEmpty()) {
                 Script.run(
-                        repo.getVCS() + "/apply",
+                        "git/apply",
                         repoPath,
                         diffRequest.getDiff());
             }

@@ -3,26 +3,26 @@ package id.jred;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Optional;
 import java.util.Scanner;
 
 public final class PidFile {
-    public static void create() throws IOException
-    {
+    public static long create() throws IOException {
+        var pid = ProcessHandle.current().pid();
         try (var writer = new PrintWriter(getPath())) {
-            writer.print(ProcessHandle.current().pid());
+            writer.print(pid);
         }
+        return pid;
     }
 
     public static void delete() {
         getPath().delete();
     }
 
-    public static Optional<ProcessHandle> read() {
+    public static ProcessHandle read() {
         try (var scanner = new Scanner(getPath())) {
-            return ProcessHandle.of(scanner.nextLong());
+            return ProcessHandle.of(scanner.nextLong()).orElse(null);
         } catch (Exception ex) {
-            return Optional.empty();
+            return null;
         }
     }
 

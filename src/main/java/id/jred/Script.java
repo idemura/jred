@@ -19,11 +19,6 @@ public final class Script {
         }
     }
 
-    public static String run(String name)
-            throws InterruptedException, IOException {
-        return run(name, null, null);
-    }
-
     public static String run(String name, File workDir)
             throws InterruptedException, IOException {
         return run(name, workDir, null);
