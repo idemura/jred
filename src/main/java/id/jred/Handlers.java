@@ -16,9 +16,9 @@ import java.util.Map;
 public final class Handlers {
     private static final Logger LOG = LoggerFactory.getLogger("jred");
 
-    private final Map<String, Repo> repoMap;
+    private final Map<String, JsonTarget> repoMap;
 
-    public static void start(String host, int port, Map<String, Repo> repoMap) {
+    public static void start(String host, int port, Map<String, JsonTarget> repoMap) {
         Spark.ipAddress(host);
         Spark.port(port);
 
@@ -40,7 +40,7 @@ public final class Handlers {
         }).start();
     }
 
-    private Handlers(Map<String, Repo> repoMap) {
+    private Handlers(Map<String, JsonTarget> repoMap) {
         this.repoMap = repoMap;
     }
 
@@ -57,49 +57,52 @@ public final class Handlers {
             }
             return os.toString();
         } catch (IOException ex) {
-            return respondCatch(response, ex);
+            return respondUnexpected(response, ex);
         }
     }
 
     private Object copy(Request req, Response response) {
         LOG.debug("Handle /copy");
         try {
-            var copyRequest = Json.read(Protocol.Copy.class, req.bodyAsBytes());
+            var copyRequest = Json.read(JsonCopy.class, req.bodyAsBytes());
             var repo = repoMap.get(copyRequest.getRepo().getName());
             if (repo == null) {
-                return respondError(response, 400,
-                                    "Repo not found: " + copyRequest.getRepo().getName());
+                return respondBadRequest(
+                        response,
+                        "Repo not found: " + copyRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
             var destPath = new File(repoPath, copyRequest.getFile()).getCanonicalFile();
             if (!destPath.toPath().startsWith(repoPath.toPath())) {
-                return respondError(response, 400,
-                                    "File must belong to repo directory tree: " + copyRequest.getFile());
+                return respondBadRequest(
+                        response,
+                        "File must belong to repo directory tree: " + copyRequest.getFile());
             }
             destPath.getParentFile().mkdirs();
             try (var stream = new FileOutputStream(destPath)) {
                 stream.write(copyRequest.getData().getBytes());
             }
-            return respond200(response);
+            return respondOK(response);
         } catch (IOException ex) {
-            return respondCatch(response, ex);
+            return respondUnexpected(response, ex);
         }
     }
 
     private Object diff(Request req, Response response) {
         LOG.debug("Handle /diff");
         try {
-            var diffRequest = Json.read(Protocol.Diff.class, req.bodyAsBytes());
+            var diffRequest = Json.read(JsonDiff.class, req.bodyAsBytes());
             var repo = repoMap.get(diffRequest.getRepo().getName());
             if (repo == null) {
-                return respondError(response, 400,
-                                    "Repo not found: " + diffRequest.getRepo().getName());
+                return respondBadRequest(
+                        response,
+                        "Repo not found: " + diffRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
             var revision = Script.run("git/revision", repoPath).trim();
             if (!revision.equals(diffRequest.getRepo().getRevision())) {
-                return respondError(response, 400,
-                                    "Revision mismatch: server " + revision +
+                return respondBadRequest(response,
+                        "Revision mismatch: server " + revision +
                         ", client " + diffRequest.getRepo().getRevision());
             }
             if (!diffRequest.getDiff().isEmpty()) {
@@ -108,29 +111,29 @@ public final class Handlers {
                         repoPath,
                         diffRequest.getDiff());
             }
-            return respond200(response);
+            return respondOK(response);
         } catch (InterruptedException | IOException ex) {
-            return respondCatch(response, ex);
+            return respondUnexpected(response, ex);
         }
     }
 
-    private static String respond200(Response response)
+    private static String respondOK(Response response)
             throws IOException {
         response.status(200);
-        return renderJson(response, Protocol.error());
+        return renderJson(response, new JsonStatus());
     }
 
-    private static String respondError(Response response, int status, String message)
+    private static String respondBadRequest(Response response, String message)
             throws IOException {
-        response.status(status);
-        return renderJson(response, Protocol.error(message));
+        response.status(400);
+        return renderJson(response, new JsonStatus(message));
     }
 
-    private static String respondCatch(Response response, Exception cause) {
+    private static String respondUnexpected(Response response, Exception cause) {
         LOG.error("Error: {}", cause.getMessage());
         response.status(500);
         try {
-            return renderJson(response, Protocol.error(cause.getMessage()));
+            return renderJson(response, new JsonStatus(cause.getMessage()));
         } catch (IOException ex) {
             LOG.error("Fatal: {}", ex.getMessage());
             return null;

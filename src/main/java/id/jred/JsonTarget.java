@@ -2,7 +2,7 @@ package id.jred;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public final class Repo {
+public final class JsonTarget {
     private String path;
 
     public void setPath(String path) {

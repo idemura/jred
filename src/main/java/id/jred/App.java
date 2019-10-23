@@ -122,9 +122,9 @@ public final class App {
         var pid = PidFile.create();
         try {
             LOG.debug("Reading repo_map");
-            Map<String, Repo> repoMap = Json.mapper.readValue(
+            Map<String, JsonTarget> repoMap = Json.mapper.readValue(
                     new File(Dir.getHome(), "repo_map"),
-                    new TypeReference<HashMap<String, Repo>>() {});
+                    new TypeReference<HashMap<String, JsonTarget>>() {});
 
             LOG.debug("Substitute env vars");
             substituteEnvVars(repoMap);
@@ -140,7 +140,7 @@ public final class App {
                 " port=" + port);
     }
 
-    private static void substituteEnvVars(Map<String, Repo> repoMap) throws IOException {
+    private static void substituteEnvVars(Map<String, JsonTarget> repoMap) throws IOException {
         var pattern = Pattern.compile("\\$\\{(.+?)}");
         var env = System.getenv();
         for (var r : repoMap.values()) {
@@ -189,7 +189,7 @@ public final class App {
             throw new IOException("Path to .git not found in " + Dir.getCurrent());
         }
         LOG.debug("repoDir={}", repoDir.toString());
-        var repo = Protocol.repo(
+        var repo = new JsonRepo(
                 repoDir.getName(),
                 Script.run("git/revision", repoDir).trim());
         LOG.debug("Repo name={} revision={}", repo.getName(), repo.getRevision());
@@ -224,14 +224,14 @@ public final class App {
             try (var stream = new FileInputStream(f)) {
                 data = new String(stream.readAllBytes());
             }
-            post(buildUrl("/copy"), Protocol.copy(
+            post(buildUrl("/copy"), new JsonCopy(
                     repo,
                     repoDir.toPath().relativize(f.toPath()).toString(),
                     data));
         }
 
         var diff = Script.run("git/diff", repoDir);
-        post(buildUrl("/diff"), Protocol.diff(repo, diff));
+        post(buildUrl("/diff"), new JsonDiff(repo, diff));
     }
 
     private void update() throws IOException {
@@ -277,7 +277,7 @@ public final class App {
             try (var es = connection.getErrorStream()) {
                 String msg;
                 if (es != null) {
-                    msg = Json.read(Protocol.Error.class, es).getMessage();
+                    msg = Json.read(JsonStatus.class, es).getMessage();
                 } else {
                     msg = "HTTP error code: " + connection.getResponseCode();
                 }
