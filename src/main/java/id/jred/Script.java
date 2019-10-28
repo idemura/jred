@@ -26,15 +26,10 @@ public final class Script {
 
     public static String runShell(String name, List<String> args, File workDir)
             throws InterruptedException, IOException {
-        return runShell(name, args, workDir, null);
-    }
-
-    public static String runShell(String name, List<String> args, File workDir, String stdin)
-            throws InterruptedException, IOException {
         var command = new ArrayList<>(SHELL);
         command.add(new File(Dir.getHome(), name).toString());
         command.addAll(args);
-        return run(command, workDir, stdin);
+        return run(command, workDir, null /* stdin */);
     }
 
     public static String run(List<String> command, File workDir, String stdin)

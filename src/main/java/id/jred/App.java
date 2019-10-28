@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 public final class App {
     private static final Logger LOG = LoggerFactory.getLogger("jred");
 
-    private static final Pattern regexCommitId = Pattern.compile("^commit ([0-9a-f]+)");
+    private static final Pattern regexCommit = Pattern.compile("^commit ([0-9a-f]+)");
     private static final Pattern regexGitSvnId = Pattern.compile("^\\s+git-svn-id: (.+)@([0-9]+) ");
 
     public static void main(String[] args) {
@@ -245,16 +245,17 @@ public final class App {
         }
         LOG.debug("repoDir={}", repoDir.toString());
         var revision = getDiffBaseRevision(vcs, repoDir);
-        var repo = new JsonRepo(repoDir.getName(), revision);
+        LOG.debug("Revision to send: {}, diff base: {}", revision[0], revision[1]);
+        var repo = new JsonRepo(repoDir.getName(), revision[0]);
         LOG.debug("Repo: name={} revision={}", repo.getName(), repo.getRevision());
 
         var status = Script.runShell(
-                vcs.toCmdLineString() + "/status",
+                "git/status", // Do not replace with VCS - could be GITSVN.
                 Collections.emptyList(),
                 repoDir).split("\n");
         var untrackedFiles = new ArrayList<File>();
         for (var s : status) {
-            if ("??".equals(s.substring(0, 2))) {
+            if (s.length() >= 3 && "??".equals(s.substring(0, 2))) {
                 var path = new File(s.substring(3)).getAbsoluteFile().getCanonicalFile();
                 if (path.isDirectory()) {
                     var stack = new ArrayList<File>();
@@ -287,23 +288,23 @@ public final class App {
                     data));
         }
 
-        var diffArgs = new ArrayList<String>();
-        if (vcs == VCS.GITSVN) {
-            diffArgs.add("master");
-        }
-        var diff = Script.runShell("git/diff", diffArgs, repoDir);
+        var diff = Script.runShell("git/diff", Arrays.asList(revision[1]), repoDir);
         post(buildUrl("/diff"), new JsonDiff(repo, diff));
     }
 
-    private String getDiffBaseRevision(VCS vcs, File repoDir)
+    // Returns two strings:
+    //   1: Revision to send over network
+    //   2: Revision as diff base
+    private String[] getDiffBaseRevision(VCS vcs, File repoDir)
             throws InterruptedException, IOException {
         switch (vcs) {
-        case GIT:
-            return Script.runShell(
+        case GIT: {
+            var gitRevision = Script.runShell(
                     vcs.toCmdLineString() + "/revision",
                     Collections.emptyList(),
                     repoDir).trim();
-
+            return new String[]{gitRevision, gitRevision};
+        }
         case GITSVN: {
             if (cmdSubmit.logLength <= 0) {
                 throw new IllegalArgumentException("Invalid log length");
@@ -312,12 +313,12 @@ public final class App {
                     Arrays.asList("git", "log", "-" + cmdSubmit.logLength),
                     repoDir,
                     null /* stdin */);
-            String lastCommitId = null;
+            String gitRevision = null;
             String gitSvnId = null;
             for (var s : output.split("\n")) {
-                var commitIdMatcher = regexCommitId.matcher(s);
-                if (commitIdMatcher.find()) {
-                    lastCommitId = commitIdMatcher.group(1);
+                var gitCommitMatcher = regexCommit.matcher(s);
+                if (gitCommitMatcher.find()) {
+                    gitRevision = gitCommitMatcher.group(1);
                 } else {
                     var gitSvnIdMatcher = regexGitSvnId.matcher(s);
                     if (gitSvnIdMatcher.find()) {
@@ -326,10 +327,10 @@ public final class App {
                     }
                 }
             }
-            if (gitSvnId == null || lastCommitId == null) {
+            if (gitSvnId == null || gitRevision == null) {
                 throw new IOException("git svn id not found");
             }
-            return gitSvnId;
+            return new String[]{gitSvnId, gitRevision};
         }
         default:
             throw new IllegalArgumentException("Submit on SVN repo is not supported");

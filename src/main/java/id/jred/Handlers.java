@@ -119,8 +119,7 @@ public final class Handlers {
                 Script.runShell(
                         vcs.toCmdLineString() + "/apply",
                         Arrays.asList(diffFile.getAbsolutePath()),
-                        repoPath,
-                        diffRequest.getDiff());
+                        repoPath);
             }
             return respondOK(response);
         } catch (InterruptedException | IOException ex) {
