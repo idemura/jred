@@ -1,0 +1,2 @@
+#! /bin/bash -e
+svn revert -R . && svn patch $1

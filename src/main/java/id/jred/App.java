@@ -1,7 +1,9 @@
 package id.jred;
 
+import com.beust.jcommander.IValueValidator;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.slf4j.Logger;
@@ -16,6 +18,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -27,6 +31,9 @@ import java.util.regex.Pattern;
 public final class App {
     private static final Logger LOG = LoggerFactory.getLogger("jred");
 
+    private static final Pattern regexCommitId = Pattern.compile("^commit ([0-9a-f]+)");
+    private static final Pattern regexGitSvnId = Pattern.compile("^\\s+git-svn-id: (.+)@([0-9]+) ");
+
     public static void main(String[] args) {
         try {
             var app = new App(args);
@@ -36,7 +43,7 @@ public final class App {
         }
     }
 
-    @Parameters(commandDescription="Start server")
+    @Parameters(separators="=", commandDescription="Start server")
     private static final class CommandServer {
         @Parameter(
             names={"-s", "--stop"},
@@ -44,11 +51,34 @@ public final class App {
         private boolean stop = false;
     }
 
-    @Parameters(commandDescription="Submit files and diff")
-    private static final class CommandSubmit {
+    public static final class VCSValidator implements IValueValidator<String> {
+        @Override
+        public void validate(String name, String value)
+                throws ParameterException {
+            try {
+                VCS.fromCmdLineString(value);
+            } catch (IllegalArgumentException ex) {
+                throw new ParameterException(
+                        "VCS must be one of: " + VCS.allValuesAsString());
+            }
+        }
     }
 
-    @Parameters(commandDescription="Update home dir files")
+    @Parameters(separators="=", commandDescription="Submit files and diff")
+    private static final class CommandSubmit {
+        @Parameter(
+            names={"--vcs"},
+            description="Repo VCS (git or gitsvn)",
+            validateValueWith=VCSValidator.class)
+        private String vcs = "git";
+
+        @Parameter(
+            names={"--log"},
+            description="Max log length to find git-svn-id")
+        private int logLength = 10;
+    }
+
+    @Parameters(separators="=", commandDescription="Update home dir files")
     private static final class CommandUpdate {
     }
 
@@ -129,6 +159,27 @@ public final class App {
             LOG.debug("Substitute env vars");
             substituteEnvVars(repoMap);
 
+            // Ensure repo map is correct
+            for (var r : repoMap.values()) {
+                var vcs = VCS.fromCmdLineString(r.getVCS());
+                switch (vcs) {
+                case GIT: {
+                    var vcsDir = "." + vcs.toCmdLineString();
+                    if (!new File(new File(r.getPath()), vcsDir).exists()) {
+                        throw new IOException(vcsDir + " not found in " + r.getPath());
+                    }
+                }
+                case SVN: {
+                    if (!new File(r.getPath()).exists()) {
+                        throw new IOException("Path not found: " + r.getPath());
+                    }
+                    break;
+                }
+                default:
+                    throw new IOException("Unsupported VCS: " + vcs);
+                }
+            }
+
             LOG.debug("Start server host={} port={}", host, port);
             Handlers.start(host, port, repoMap);
         } catch (IOException ex) {
@@ -183,18 +234,24 @@ public final class App {
     // We have vcs argument because we want to detect it actually.
     private void submit()
             throws InterruptedException, IOException {
+        var vcs = VCS.fromCmdLineString(cmdSubmit.vcs);
+        if (!(vcs == VCS.GIT || vcs == VCS.GITSVN)) {
+            throw new IllegalArgumentException("Unsupported VCS: " + vcs);
+        }
         LOG.debug("Submit to host={} port={}", host, port);
         var repoDir = Dir.getParentWithFile(Dir.getCurrent(), ".git");
         if (repoDir == null) {
             throw new IOException("Path to .git not found in " + Dir.getCurrent());
         }
         LOG.debug("repoDir={}", repoDir.toString());
-        var repo = new JsonRepo(
-                repoDir.getName(),
-                Script.run("git/revision", repoDir).trim());
-        LOG.debug("Repo name={} revision={}", repo.getName(), repo.getRevision());
+        var revision = getDiffBaseRevision(vcs, repoDir);
+        var repo = new JsonRepo(repoDir.getName(), revision);
+        LOG.debug("Repo: name={} revision={}", repo.getName(), repo.getRevision());
 
-        var status = Script.run("git/status", repoDir).split("\n");
+        var status = Script.runShell(
+                vcs.toCmdLineString() + "/status",
+                Collections.emptyList(),
+                repoDir).split("\n");
         var untrackedFiles = new ArrayList<File>();
         for (var s : status) {
             if ("??".equals(s.substring(0, 2))) {
@@ -230,12 +287,59 @@ public final class App {
                     data));
         }
 
-        var diff = Script.run("git/diff", repoDir);
+        var diffArgs = new ArrayList<String>();
+        if (vcs == VCS.GITSVN) {
+            diffArgs.add("master");
+        }
+        var diff = Script.runShell("git/diff", diffArgs, repoDir);
         post(buildUrl("/diff"), new JsonDiff(repo, diff));
+    }
+
+    private String getDiffBaseRevision(VCS vcs, File repoDir)
+            throws InterruptedException, IOException {
+        switch (vcs) {
+        case GIT:
+            return Script.runShell(
+                    vcs.toCmdLineString() + "/revision",
+                    Collections.emptyList(),
+                    repoDir).trim();
+
+        case GITSVN: {
+            if (cmdSubmit.logLength <= 0) {
+                throw new IllegalArgumentException("Invalid log length");
+            }
+            var output = Script.run(
+                    Arrays.asList("git", "log", "-" + cmdSubmit.logLength),
+                    repoDir,
+                    null /* stdin */);
+            String lastCommitId = null;
+            String gitSvnId = null;
+            for (var s : output.split("\n")) {
+                var commitIdMatcher = regexCommitId.matcher(s);
+                if (commitIdMatcher.find()) {
+                    lastCommitId = commitIdMatcher.group(1);
+                } else {
+                    var gitSvnIdMatcher = regexGitSvnId.matcher(s);
+                    if (gitSvnIdMatcher.find()) {
+                        gitSvnId = gitSvnIdMatcher.group(2);
+                        break;
+                    }
+                }
+            }
+            if (gitSvnId == null || lastCommitId == null) {
+                throw new IOException("git svn id not found");
+            }
+            return gitSvnId;
+        }
+        default:
+            throw new IllegalArgumentException("Submit on SVN repo is not supported");
+        }
     }
 
     private void update() throws IOException {
         copyScripts(App.class.getClassLoader(), "git");
+        copyScripts(App.class.getClassLoader(), "gitsvn");
+        copyScripts(App.class.getClassLoader(), "svn");
         System.out.println("Home dir updated");
     }
 
@@ -298,11 +402,10 @@ public final class App {
         for (var a : new String[]{"apply", "diff", "revision", "status"}) {
             var qualifiedName = prefix + a;
             try (var is = cl.getResourceAsStream(qualifiedName)) {
-                if (is == null) {
-                    throw new IOException("Resource not found: " + qualifiedName);
-                }
-                try (var os = new FileOutputStream(new File(destPath, a))) {
-                    os.write(is.readAllBytes());
+                if (is != null) {
+                    try (var os = new FileOutputStream(new File(destPath, a))) {
+                        os.write(is.readAllBytes());
+                    }
                 }
             }
         }

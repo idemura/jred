@@ -1,2 +1,2 @@
 #! /bin/bash -e
-git diff HEAD
+git diff ${1:-HEAD}

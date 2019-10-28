@@ -24,19 +24,24 @@ public final class Script {
         }
     }
 
-    public static String run(String name, File workDir)
+    public static String runShell(String name, List<String> args, File workDir)
             throws InterruptedException, IOException {
-        return run(name, workDir, null);
+        return runShell(name, args, workDir, null);
     }
 
-    public static String run(String name, File workDir, String stdin)
+    public static String runShell(String name, List<String> args, File workDir, String stdin)
+            throws InterruptedException, IOException {
+        var command = new ArrayList<>(SHELL);
+        command.add(new File(Dir.getHome(), name).toString());
+        command.addAll(args);
+        return run(command, workDir, stdin);
+    }
+
+    public static String run(List<String> command, File workDir, String stdin)
             throws InterruptedException, IOException {
         Process process = null;
         try {
-            var command = new ArrayList<>(SHELL);
-            command.add(new File(Dir.getHome(), name).toString());
             LOG.debug("Run `{}` in {}", String.join(" ", command), workDir.toString());
-
             var pb = new ProcessBuilder(command);
             pb.redirectErrorStream(true);
             pb.directory(workDir); // Accepts null
@@ -59,8 +64,8 @@ public final class Script {
                 }
                 // Normal IO with process is not possible.
                 throw new IOException(
-                        "Script " + name + " exit code " + exitCode +
-                        "\n" + output);
+                        "Command `" + String.join(" ", command) + "` exit code " + exitCode +
+                        ":\n" + output);
             }
             return output;
         } finally {

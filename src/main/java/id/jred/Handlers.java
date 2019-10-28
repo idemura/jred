@@ -11,6 +11,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 public final class Handlers {
@@ -99,15 +101,24 @@ public final class Handlers {
                         "Repo not found: " + diffRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
-            var revision = Script.run("git/revision", repoPath).trim();
+            var vcs = VCS.fromCmdLineString(repo.getVCS());
+            var revision = Script.runShell(
+                    vcs.toCmdLineString() + "/revision",
+                    Collections.emptyList(),
+                    repoPath).trim();
             if (!revision.equals(diffRequest.getRepo().getRevision())) {
                 return respondBadRequest(response,
                         "Revision mismatch: server " + revision +
                         ", client " + diffRequest.getRepo().getRevision());
             }
             if (!diffRequest.getDiff().isEmpty()) {
-                Script.run(
-                        "git/apply",
+                var diffFile = new File("/tmp/" + diffRequest.getRepo().getName() + ".diff");
+                try (var os = new FileOutputStream(diffFile)) {
+                    os.write(diffRequest.getDiff().getBytes());
+                }
+                Script.runShell(
+                        vcs.toCmdLineString() + "/apply",
+                        Arrays.asList(diffFile.getAbsolutePath()),
                         repoPath,
                         diffRequest.getDiff());
             }

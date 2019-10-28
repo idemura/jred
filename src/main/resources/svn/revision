@@ -1,0 +1,2 @@
+#! /bin/bash -e
+svn info --show-item revision
