@@ -11,6 +11,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -71,14 +72,16 @@ public final class Handlers {
             if (repo == null) {
                 return respondBadRequest(
                         response,
-                        "Repo not found: " + copyRequest.getRepo().getName());
+                        "Repo not found: {0}",
+                        copyRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
             var destPath = new File(repoPath, copyRequest.getFile()).getCanonicalFile();
             if (!destPath.toPath().startsWith(repoPath.toPath())) {
                 return respondBadRequest(
                         response,
-                        "File must belong to repo directory tree: " + copyRequest.getFile());
+                        "File outside repo directory tree: {0}",
+                        copyRequest.getFile());
             }
             destPath.getParentFile().mkdirs();
             try (var stream = new FileOutputStream(destPath)) {
@@ -98,7 +101,8 @@ public final class Handlers {
             if (repo == null) {
                 return respondBadRequest(
                         response,
-                        "Repo not found: " + diffRequest.getRepo().getName());
+                        "Repo not found: {0}",
+                        diffRequest.getRepo().getName());
             }
             var repoPath = new File(repo.getPath()).getAbsoluteFile().getCanonicalFile();
             var vcs = VCS.fromCmdLineString(repo.getVCS());
@@ -107,12 +111,18 @@ public final class Handlers {
                     Collections.emptyList(),
                     repoPath).trim();
             if (!revision.equals(diffRequest.getRepo().getRevision())) {
-                return respondBadRequest(response,
-                        "Revision mismatch: server " + revision +
-                        ", client " + diffRequest.getRepo().getRevision());
+                return respondBadRequest(
+                        response,
+                        "Revision mismatch: server {0}, client {1}",
+                        revision,
+                        diffRequest.getRepo().getRevision());
             }
             if (!diffRequest.getDiff().isEmpty()) {
-                var diffFile = new File("/tmp/" + diffRequest.getRepo().getName() + ".diff");
+                var tid = Thread.currentThread().getId();
+                var diffFile = new File(MessageFormat.format(
+                        "/tmp/{0}-{1}.diff",
+                        diffRequest.getRepo().getName(),
+                        tid));
                 try (var os = new FileOutputStream(diffFile)) {
                     os.write(diffRequest.getDiff().getBytes());
                 }
@@ -133,10 +143,10 @@ public final class Handlers {
         return renderJson(response, new JsonStatus());
     }
 
-    private static String respondBadRequest(Response response, String message)
+    private static String respondBadRequest(Response response, String format, Object... arguments)
             throws IOException {
         response.status(400);
-        return renderJson(response, new JsonStatus(message));
+        return renderJson(response, new JsonStatus(MessageFormat.format(format, arguments)));
     }
 
     private static String respondUnexpected(Response response, Exception cause) {

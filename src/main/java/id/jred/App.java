@@ -17,6 +17,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -112,7 +113,9 @@ public final class App {
     }
 
     private static void reportExceptionAndQuit(Throwable ex) {
-        System.err.println("Exception: " + ex.getMessage());
+        var msg = ex.getMessage();
+        System.err.print("Exception: " +
+                (msg.endsWith("\n") ? ex.getMessage() : ex.getMessage() + "\n"));
         System.exit(1);
     }
 
@@ -166,17 +169,17 @@ public final class App {
                 case GIT: {
                     var vcsDir = "." + vcs.toCmdLineString();
                     if (!new File(new File(r.getPath()), vcsDir).exists()) {
-                        throw new IOException(vcsDir + " not found in " + r.getPath());
+                        throw ioException("git repo not found in {0}", r.getPath());
                     }
                 }
                 case SVN: {
                     if (!new File(r.getPath()).exists()) {
-                        throw new IOException("Path not found: " + r.getPath());
+                        throw ioException("svn repo not found in {0}", r.getPath());
                     }
                     break;
                 }
                 default:
-                    throw new IOException("Unsupported VCS: " + vcs);
+                    throw ioException("Unsupported VCS: {0}", vcs);
                 }
             }
 
@@ -207,7 +210,7 @@ public final class App {
             });
             if (error[0] != null) {
                 // IO error because path is not valid
-                throw new IOException("Unknown env variable: " + error[0]);
+                throw ioException("Unknown env variable: {0}", error[0]);
             }
             r.setPath(subst);
         }
@@ -241,7 +244,7 @@ public final class App {
         LOG.debug("Submit to host={} port={}", host, port);
         var repoDir = Dir.getParentWithFile(Dir.getCurrent(), ".git");
         if (repoDir == null) {
-            throw new IOException("Path to .git not found in " + Dir.getCurrent());
+            throw ioException(".git not found in {0} or parent", Dir.getCurrent());
         }
         LOG.debug("repoDir={}", repoDir.toString());
         var revision = getDiffBaseRevision(vcs, repoDir);
@@ -328,7 +331,7 @@ public final class App {
                 }
             }
             if (gitSvnId == null || gitRevision == null) {
-                throw new IOException("git svn id not found");
+                throw ioException("git-svn-id not found");
             }
             return new String[]{gitSvnId, gitRevision};
         }
@@ -410,5 +413,9 @@ public final class App {
                 }
             }
         }
+    }
+
+    private static IOException ioException(String format, Object... arguments) {
+        return new IOException(MessageFormat.format(format, arguments));
     }
 }

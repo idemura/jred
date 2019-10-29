@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -54,13 +55,12 @@ public final class Script {
             var exitCode = process.waitFor();
             LOG.debug("Process exit code {}", exitCode);
             if (exitCode != 0) {
-                if (output.endsWith("\n")) {
-                    output = output.substring(0, output.length() - 1);
-                }
                 // Normal IO with process is not possible.
-                throw new IOException(
-                        "Command `" + String.join(" ", command) + "` exit code " + exitCode +
-                        ":\n" + output);
+                throw new IOException(MessageFormat.format(
+                        "`{0}` exit code {1}:\n{2}",
+                        String.join(" ", command),
+                        exitCode,
+                        output));
             }
             return output;
         } finally {
