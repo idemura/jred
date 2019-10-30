@@ -117,6 +117,10 @@ public final class Handlers {
                         revision,
                         diffRequest.getRepo().getRevision());
             }
+            Script.runShell(
+                    vcs.toCmdLineString() + "/reset",
+                    Arrays.asList(),
+                    repoPath);
             if (!diffRequest.getDiff().isEmpty()) {
                 var tid = Thread.currentThread().getId();
                 var diffFile = new File(MessageFormat.format(

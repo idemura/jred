@@ -1,0 +1,5 @@
+#! /bin/bash -e
+# Revert first, untracked files can appear
+svn revert -R .
+# Remove untracked
+svn status | grep '^?' | cut -c 9- | xargs --no-run-if-empty rm -r

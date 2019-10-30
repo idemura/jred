@@ -1,2 +1,2 @@
 #! /bin/bash -e
-git reset --hard && git apply $1
+git apply $1

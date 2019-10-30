@@ -1,3 +1,2 @@
 #! /bin/bash -e
-svn status | grep '^?' | cut -c 9- | xargs --no-run-if-empty rm -r
-svn revert -R . && svn patch $1
+svn patch $1

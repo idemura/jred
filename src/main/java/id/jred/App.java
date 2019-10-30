@@ -246,12 +246,19 @@ public final class App {
         if (repoDir == null) {
             throw ioException(".git not found in {0} or parent", Dir.getCurrent());
         }
-        LOG.debug("repoDir={}", repoDir.toString());
+        LOG.debug("Repo dir {}", repoDir.toString());
         var revision = getDiffBaseRevision(vcs, repoDir);
-        LOG.debug("Revision to send: {}, diff base: {}", revision[0], revision[1]);
+        LOG.debug("Revision to send: {}, base revision: {}",
+                  revision[0],
+                  revision[1]);
         var repo = new JsonRepo(repoDir.getName(), revision[0]);
         LOG.debug("Repo: name={} revision={}", repo.getName(), repo.getRevision());
 
+        // First, send diff, because it does reset.
+        var diff = Script.runShell("git/diff", Arrays.asList(revision[1]), repoDir);
+        post(buildUrl("/diff"), new JsonDiff(repo, diff));
+
+        // After, send untracked files
         var status = Script.runShell(
                 "git/status", // Do not replace with VCS - could be GITSVN.
                 Collections.emptyList(),
@@ -290,9 +297,6 @@ public final class App {
                     repoDir.toPath().relativize(f.toPath()).toString(),
                     data));
         }
-
-        var diff = Script.runShell("git/diff", Arrays.asList(revision[1]), repoDir);
-        post(buildUrl("/diff"), new JsonDiff(repo, diff));
     }
 
     // Returns two strings:
@@ -403,7 +407,7 @@ public final class App {
         var destPath = new File(Dir.getHome(), dirName);
         destPath.mkdir();
         var prefix = dirName + "/";
-        for (var a : new String[]{"apply", "diff", "revision", "status"}) {
+        for (var a : new String[]{"apply", "diff", "reset", "revision", "status"}) {
             var qualifiedName = prefix + a;
             try (var is = cl.getResourceAsStream(qualifiedName)) {
                 if (is != null) {
