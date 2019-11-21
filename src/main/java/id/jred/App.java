@@ -266,17 +266,20 @@ public final class App {
         var untrackedFiles = new ArrayList<File>();
         for (var s : status) {
             if (s.length() >= 3 && "??".equals(s.substring(0, 2))) {
-                var path = new File(s.substring(3)).getAbsoluteFile().getCanonicalFile();
+                var path = new File(repoDir, s.substring(3)).getCanonicalFile();
                 if (path.isDirectory()) {
                     var stack = new ArrayList<File>();
                     stack.add(path);
-                     while (!stack.isEmpty()) {
-                        var dir = stack.remove(stack.size() - 1);
-                        for (var f : dir.listFiles()) {
-                            if (f.isDirectory()) {
-                                stack.add(f);
-                            } else {
-                                untrackedFiles.add(f);
+                    while (!stack.isEmpty()) {
+                        var dirFiles = stack.remove(stack.size() - 1).listFiles();
+                        if (dirFiles != null)
+                        {
+                            for (var f : dirFiles) {
+                                if (f.isDirectory()) {
+                                    stack.add(f);
+                                } else {
+                                    untrackedFiles.add(f);
+                                }
                             }
                         }
                     }
